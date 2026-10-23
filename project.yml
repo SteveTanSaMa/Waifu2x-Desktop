@@ -1,0 +1,112 @@
+name: Waifu2x
+options:
+  bundleIdPrefix: studio.stevetan
+  developmentLanguage: en
+  useBaseInternationalization: false
+  preGenCommand: bash script/prepare_runtime.sh
+  deploymentTarget:
+    macOS: '26.0'
+  xcodeVersion: '27.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    WAIFU2X_TEST_MODE: ''
+    MACOSX_DEPLOYMENT_TARGET: '26.0'
+    CODE_SIGN_IDENTITY: '-'
+    CODE_SIGN_STYLE: Manual
+    # Ad-hoc local builds have no Team ID for hardened library validation.
+    # Developer ID distribution builds should override this to YES.
+    ENABLE_HARDENED_RUNTIME: NO
+    COMBINE_HIDPI_IMAGES: YES
+    DEVELOPMENT_TEAM: ''
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  Waifu2x:
+    type: application
+    platform: macOS
+    sources:
+      - path: Waifu2x
+        excludes: [Resources]
+      - path: Waifu2x/Resources/Runtime/Engine
+        type: folder
+        buildPhase: resources
+      - path: Waifu2x/Resources/ModelCatalog.json
+        buildPhase: resources
+      - path: Waifu2x/Resources/Assets.xcassets
+        optional: true
+      - path: Waifu2x/Resources/Localizable.xcstrings
+        buildPhase: resources
+      - path: Waifu2x/Resources/Localizations
+        buildPhase: resources
+    dependencies:
+      - framework: Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib
+        embed: true
+        codeSign: true
+    info:
+      path: Waifu2x/Resources/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, zh-Hans, zh-Hant, ja, fr, ko, ru]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.png
+              - public.jpeg
+              - public.heic
+              - public.tiff
+              - org.webmproject.webp
+              - com.microsoft.bmp
+    settings:
+      base:
+        SWIFT_OBJC_BRIDGING_HEADER: Waifu2x/Interop/Waifu2x-Bridging-Header.h
+        LIBRARY_SEARCH_PATHS: ['$(inherited)', '$(SRCROOT)/Vendor/onnxruntime/lib']
+        HEADER_SEARCH_PATHS: '$(SRCROOT)/Vendor/onnxruntime/include'
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        LD_RUNPATH_SEARCH_PATHS: '$(inherited) @executable_path/../Frameworks'
+        PRODUCT_BUNDLE_IDENTIFIER: studio.stevetan.Waifu2x
+        PRODUCT_NAME: Waifu2x
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Waifu2x
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.graphics-design
+        INFOPLIST_KEY_NSHighResolutionCapable: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: 'Copyright © 2026 Steve Tan'
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        MARKETING_VERSION: '1.0.0'
+        CURRENT_PROJECT_VERSION: '1'
+    preBuildScripts:
+      - name: Prepare inference runtime without models
+        script: 'bash "$SRCROOT/script/prepare_runtime.sh"'
+        outputFiles:
+          - '$(SRCROOT)/Waifu2x/Resources/Runtime/Engine'
+          - '$(SRCROOT)/Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib'
+          - '$(SRCROOT)/Vendor/onnxruntime/include'
+        basedOnDependencyAnalysis: false
+    postBuildScripts:
+      - name: Sign inference helper
+        script: 'codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Engine/waifu2x-ncnn-vulkan"'
+        basedOnDependencyAnalysis: false
+  Waifu2xTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: Waifu2x
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Waifu2x:
+    build:
+      targets:
+        Waifu2x: all
+    test:
+      targets: [Waifu2xTests]
+      environmentVariables:
+        WAIFU2X_MODEL_ROOT: $(SRCROOT)/build/TestModels/models-v1
+        WAIFU2X_TEST_MODE: $(WAIFU2X_TEST_MODE)
