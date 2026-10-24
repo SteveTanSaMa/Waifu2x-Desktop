@@ -340,8 +340,14 @@ final class CanvasLayoutTests: XCTestCase {
             return view.subviews.lazy.compactMap { probe(name, in: $0) }.first
         }
         try await Task.sleep(for: .milliseconds(150))
-        XCTAssertEqual(window.contentLayoutRect.size, CGSize(width: 1280, height: 768))
-        XCTAssertEqual(window.minSize, CGSize(width: 1280, height: 800))
+        let minimumContentSize = CanvasPanelLayout.minimumWindowSize
+        XCTAssertEqual(window.contentLayoutRect.size, minimumContentSize)
+        // SwiftUI's safe-area sizing can change the outer-frame minimum.
+        // Starting undersized must still settle at that actual minimum while
+        // preserving the required content area, without a fixed titlebar delta.
+        XCTAssertEqual(window.frame.size, window.minSize)
+        XCTAssertGreaterThanOrEqual(window.minSize.width, minimumContentSize.width)
+        XCTAssertGreaterThanOrEqual(window.minSize.height, minimumContentSize.height)
         print("WINDOW MINIMUM contentLayout=\(window.contentLayoutRect.size) frame=\(window.minSize)")
         XCTAssertGreaterThanOrEqual(window.frame.width, CanvasPanelLayout.minimumWindowSize.width)
         XCTAssertGreaterThanOrEqual(window.frame.height, CanvasPanelLayout.minimumWindowSize.height)
