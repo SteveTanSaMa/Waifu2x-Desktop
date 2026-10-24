@@ -6,6 +6,12 @@
 
 **版本 1.0.0 · macOS 26 或更高版本**
 
+## 下载与安装
+
+从 [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest) 下载 **Apple Silicon（arm64）** DMG 或 ZIP。打开 DMG 后将 **Waifu2x** 拖入 **Applications（应用程序）**；使用 ZIP 时，解压后将应用移入应用程序目录。安装包要求 macOS 26 或更高版本，不支持 Intel Mac。可使用附带的 `SHA256SUMS` 核对下载文件。
+
+应用使用无需证书的临时签名（ad-hoc），**未使用 Developer ID 签名，未经 Apple 公证**。若 macOS 阻止首次打开，且你信任此下载，可先尝试打开应用，再前往 **系统设置 → 隐私与安全性 → 仍要打开**。详见 [Apple 操作说明](https://support.apple.com/zh-cn/102445)。
+
 ## 功能
 
 - 将图片放大至 2× 或 4×，也可保持原始尺寸，仅进行降噪
@@ -57,6 +63,16 @@ open Waifu2x.xcodeproj
 ```sh
 xcodegen generate
 ```
+
+### Apple Silicon 发布包
+
+```sh
+bash script/package_release.sh
+```
+
+在 Apple Silicon Mac 上，此脚本构建 Release 应用，将所有内置 Mach-O 程序和动态库裁剪为 arm64，应用无需证书的临时签名并验证应用包，最后在 `dist/` 生成 DMG、ZIP 与 `SHA256SUMS`。模型权重不随包内置。
+
+[GitHub Actions](.github/workflows/release.yml) 在 Apple Silicon 上使用 Xcode 27.0，对 `main` 推送、拉取请求和手动运行执行单元测试并打包。发布新版本时，更新应用版本号，然后推送对应的 `vX.Y.Z` 标签，或向 `main` 推送首行严格为 `release: vX.Y.Z` 的提交；也可在 `main` 手动运行工作流并启用 **publish**。只有测试、打包和校验全部通过后才会公开发布；工作流不会覆盖已发布的版本。
 
 ## 测试
 

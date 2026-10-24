@@ -6,6 +6,12 @@ A native macOS app for image upscaling and denoising, with on-device processing 
 
 **Version 1.0.0 · macOS 26 or later**
 
+## Download and install
+
+Download the **Apple Silicon (arm64)** DMG or ZIP from [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest). Open the DMG and drag **Waifu2x** into **Applications**, or extract the ZIP and move the app there. These packages require macOS 26 or later and do not support Intel Macs. Verify downloads with the included `SHA256SUMS` file if needed.
+
+The app uses a certificate-free ad-hoc signature and is **not Developer ID signed or notarized by Apple**. If macOS blocks the first launch and you trust the download, try opening the app, then choose **System Settings → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/102445).
+
 ## Features
 
 - Upscale images to 2× or 4×, or reduce noise at the original size
@@ -57,6 +63,16 @@ The Xcode project is committed. [XcodeGen](https://github.com/yonaskolb/XcodeGen
 ```sh
 xcodegen generate
 ```
+
+### Apple Silicon release packages
+
+```sh
+bash script/package_release.sh
+```
+
+On an Apple Silicon Mac, this builds a Release app, trims all bundled Mach-O binaries to arm64, applies certificate-free ad-hoc signatures, verifies the bundle, and creates a DMG, ZIP, and `SHA256SUMS` in `dist/`. Model weights are not bundled.
+
+[GitHub Actions](.github/workflows/release.yml) runs unit tests and packages the app with Xcode 27.0 on Apple Silicon for pushes to `main`, pull requests, and manual runs. To publish a new version, update the app version and either push a matching `vX.Y.Z` tag, push a commit to `main` whose first line is exactly `release: vX.Y.Z`, or run the workflow on `main` with **publish** enabled. A release is published only after tests, packaging, and checksum verification pass. Published releases are never overwritten by this workflow.
 
 ## Tests
 

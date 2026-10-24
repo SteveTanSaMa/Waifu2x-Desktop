@@ -1,0 +1,133 @@
+name: Apple Silicon release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the app version as a GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Test and package arm64
+    runs-on: xcode-27
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify Apple Silicon toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          xcodebuild -version
+
+      - name: Run unit tests
+        run: bash script/test.sh --unit
+
+      - name: Build and package Apple Silicon app
+        id: package
+        run: bash script/package_release.sh
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Waifu2x-macos-arm64
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload build and test logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-arm64
+          path: |
+            build/*.log
+            build/Logs/Test/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+       startsWith(github.event.head_commit.message, 'release: v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+      RELEASE_TAG: ${{ needs.build.outputs.tag }}
+      HEAD_MESSAGE: ${{ github.event.head_commit.message }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate requested version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            test "$GITHUB_REF_NAME" = "$RELEASE_TAG"
+          elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "${HEAD_MESSAGE%%$'\n'*}" = "release: $RELEASE_TAG"
+          else
+            test "$GITHUB_REF" = refs/heads/main
+          fi
+
+      - name: Download and verify packages
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name Waifu2x-macos-arm64 --dir dist
+          cd dist
+          sha256sum --check SHA256SUMS
+
+      - name: Create draft, upload packages, and publish
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > release.json; then
+            # Only resume our own incomplete draft. Published releases are immutable here.
+            jq -e --arg sha "$GITHUB_SHA" '.isDraft and .targetCommitish == $sha' release.json
+          else
+            notes=(--generate-notes)
+            if [[ -f ".github/release-notes/$RELEASE_TAG.md" ]]; then
+              notes=(--notes-file ".github/release-notes/$RELEASE_TAG.md")
+            fi
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" \
+              --title "Waifu2x $RELEASE_VERSION — Apple Silicon" --draft "${notes[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
