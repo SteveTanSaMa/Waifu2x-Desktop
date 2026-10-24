@@ -21,6 +21,8 @@ echo "Running $TEST_MODE tests; log: $LOG_PATH"
 if ! xcodebuild -project "$ROOT_DIR/Waifu2x.xcodeproj" -scheme Waifu2x -configuration Debug \
   -destination 'platform=macOS' -derivedDataPath "$ROOT_DIR/build" \
   "WAIFU2X_TEST_MODE=$TEST_MODE" test > "$LOG_PATH" 2>&1; then
+  # Include early assertions even when later test output fills the log tail.
+  /usr/bin/grep -n 'error:' "$LOG_PATH" || true
   tail -n 100 "$LOG_PATH"
   exit 1
 fi

@@ -135,13 +135,19 @@ final class CanvasLayoutTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         let movingQueue = try XCTUnwrap(probe("queueToggleBounds", in: host))
         let intermediateX = movingQueue.convert(movingQueue.bounds, to: nil).minX
-        XCTAssertGreaterThan(intermediateX, 92)
         let targetX = WorkspaceHeaderLayout(size: host.bounds.size, panels: [.images, .options], actionsWidth: 125).queueX
-        XCTAssertLessThan(intermediateX, targetX)
+        // Task.sleep guarantees a minimum delay, not an exact animation frame.
+        // A shared runner can resume after completion; reduced motion can also
+        // place the control at its endpoint immediately. Keep checking bounds
+        // here; the dedicated motion tests cover animation and reversal.
+        XCTAssertGreaterThanOrEqual(intermediateX, 92)
+        XCTAssertLessThanOrEqual(intermediateX, targetX)
         let currentQueueRect = movingQueue.convert(movingQueue.bounds, to: nil)
         XCTAssertEqual(currentQueueRect.midY, try XCTUnwrap(queueY), accuracy: 0.01)
         workspace.toggleMultiSelection()
         try await Task.sleep(for: .milliseconds(420))
+        let settledQueue = try XCTUnwrap(probe("queueToggleBounds", in: host))
+        XCTAssertEqual(settledQueue.convert(settledQueue.bounds, to: nil).minX, targetX, accuracy: 0.01)
         let actionsAfterMultiSelect = try XCTUnwrap(probe("actionsBounds", in: host))
         XCTAssertEqual(actionsAfterMultiSelect.convert(actionsAfterMultiSelect.bounds, to: nil), actionsFrame)
         print("HEADER intermediate x=\(intermediateX)")
