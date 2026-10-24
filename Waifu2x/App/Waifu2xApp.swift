@@ -9,7 +9,7 @@ struct Waifu2xApp: App {
     @State private var startup = AppStartupState()
     private var blocksWorkspace: Bool { onboarding.isPresented || !startup.isReady }
     var body: some Scene {
-        Window("Waifu2x", id: "main") {
+        Window(Text(verbatim: "Waifu2x"), id: "main") {
             WorkspaceRootView(workspace: workspace, onboarding: onboarding, startup: startup)
                 .tint(.accentColor)
                 .onAppear {

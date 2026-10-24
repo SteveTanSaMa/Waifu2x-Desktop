@@ -10294,6 +10294,147 @@
         }
       }
     },
+    "模型压缩包内容与清单不符": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model package contents do not match the manifest"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型压缩包内容与清单不符"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型壓縮包內容與清單不符"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデルパッケージの内容がマニフェストと一致しません"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le contenu du pack de modèles ne correspond pas au manifeste"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모델 패키지 내용이 매니페스트와 일치하지 않습니다"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Содержимое пакета моделей не соответствует манифесту"
+          }
+        }
+      }
+    },
+    "模型压缩包无法解压，请重试": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not extract the model package. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型压缩包无法解压，请重试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法解壓縮模型壓縮包，請重試"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデルパッケージを展開できませんでした。もう一度お試しください"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’extraire le pack de modèles ; réessayez"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모델 패키지 압축을 해제할 수 없습니다. 다시 시도하세요"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось распаковать пакет моделей. Повторите попытку."
+          }
+        }
+      }
+    },
+    "模型压缩包校验失败，请重试": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model package verification failed. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型压缩包校验失败，请重试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型壓縮包驗證失敗，請重試"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデルパッケージの検証に失敗しました。もう一度お試しください"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vérification du pack de modèles a échoué ; réessayez"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모델 패키지 검증에 실패했습니다. 다시 시도하세요"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить пакет моделей. Повторите попытку."
+          }
+        }
+      }
+    },
     "模型已就绪": {
       "extractionState": "manual",
       "localizations": {
@@ -11371,6 +11512,53 @@
           "stringUnit": {
             "state": "translated",
             "value": "Создание PNG без потерь"
+          }
+        }
+      }
+    },
+    "正在解压模型包": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extracting model package"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在解压模型包"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在解壓縮模型套件"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデルパッケージを展開中"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extraction du pack de modèles"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모델 패키지 압축 해제 중"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Распаковка пакета моделей"
           }
         }
       }
@@ -15601,6 +15789,53 @@
           "stringUnit": {
             "state": "translated",
             "value": "Первоначальная подготовка"
+          }
+        }
+      }
+    },
+    "首次模型打包下载，仅需准备一次": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Models download as one package; setup is only needed once"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次模型打包下载，仅需准备一次"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次以套件下載模型，只需準備一次"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初回はモデルをまとめてダウンロードします。準備は一度だけです"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les modèles sont téléchargés en un seul pack ; une seule préparation suffit"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "처음에 모델을 하나의 패키지로 다운로드하며, 준비는 한 번만 하면 됩니다"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Модели загружаются одним пакетом; подготовка нужна только один раз"
           }
         }
       }

@@ -46,6 +46,17 @@ final class OnboardingTests: XCTestCase {
         }
     }
 
+    func testCompletingAHiddenTutorialDoesNotConsumeFirstRun() throws {
+        try withIsolatedDefaults { defaults in
+            let state = OnboardingState(defaults: defaults)
+            state.complete()
+            XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey))
+
+            state.presentIfNeeded(arguments: [])
+            XCTAssertTrue(state.isPresented)
+        }
+    }
+
     func testManualReopeningResetsToFirstPageAfterCompletion() throws {
         try withIsolatedDefaults { defaults in
             let state = OnboardingState(defaults: defaults)

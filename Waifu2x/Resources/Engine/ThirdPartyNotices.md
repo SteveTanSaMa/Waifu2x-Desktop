@@ -1,8 +1,8 @@
 # Third-party software and models
 
-App builds include the inference runtimes and the notices listed here. Runtime binaries are obtained by the developer bootstrap; model weights and helper graphs are downloaded separately when the app prepares its models. They are not embedded in the app bundle.
+App builds include the inference runtimes and the notices listed here. Runtime binaries are obtained by the developer bootstrap. Original upstream model weights and helper graphs are repackaged without modification into a unified archive distributed through [this repository's GitHub Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases). The app downloads that archive separately when preparing its models; weights are not embedded in the app bundle.
 
-Every model download is checked against the size and SHA-256 recorded in [ModelCatalog.json](../ModelCatalog.json). Image processing runs locally; model downloads require network access and do not upload user images.
+The archive and every extracted model are checked against the sizes and SHA-256 digests recorded in [ModelCatalog.json](../ModelCatalog.json). The catalog retains each file's original upstream source URL and checksum alongside the archive metadata. Image processing runs locally; model downloads require network access and do not upload user images.
 
 ## waifu2x-ncnn-vulkan
 
@@ -10,7 +10,7 @@ The macOS inference helper comes from [nihui/waifu2x-ncnn-vulkan, release 202509
 
 Copyright (c) 2019 nihui. MIT license: [LICENSE-waifu2x](LICENSE-waifu2x).
 
-CUNet and Upconv model files are downloaded from the upstream repository at fixed commit [`a86cfb043e6482b5f08778a114df9b5faf6e73b7`](https://github.com/nihui/waifu2x-ncnn-vulkan/tree/a86cfb043e6482b5f08778a114df9b5faf6e73b7/models), corresponding to the 20250915 release. Model origins include [nagadomi/waifu2x](https://github.com/nagadomi/waifu2x) and [lltcggie/waifu2x-caffe](https://github.com/lltcggie/waifu2x-caffe); their notices are retained in [waifu2x-original.txt](Licenses/waifu2x-original.txt) and [waifu2x-caffe.txt](Licenses/waifu2x-caffe.txt).
+The unified archive redistributes the original CUNet and Upconv model files from the upstream repository at fixed commit [`a86cfb043e6482b5f08778a114df9b5faf6e73b7`](https://github.com/nihui/waifu2x-ncnn-vulkan/tree/a86cfb043e6482b5f08778a114df9b5faf6e73b7/models), corresponding to the 20250915 release. Model origins include [nagadomi/waifu2x](https://github.com/nagadomi/waifu2x) and [lltcggie/waifu2x-caffe](https://github.com/lltcggie/waifu2x-caffe); their notices are retained in [waifu2x-original.txt](Licenses/waifu2x-original.txt) and [waifu2x-caffe.txt](Licenses/waifu2x-caffe.txt).
 
 The inference executable includes the following third-party components. Upstream license texts and notices are retained here:
 
@@ -33,6 +33,6 @@ Copyright (c) Microsoft Corporation. MIT license: [onnxruntime.txt](Licenses/onn
 
 ## nunif / waifu2x ONNX models
 
-ONNX models and preprocessing/TTA helper graphs come from [nagadomi/nunif](https://github.com/nagadomi/nunif/tree/master/waifu2x/unlimited_waifu2x), served by [unlimited.waifu2x.net/models](https://unlimited.waifu2x.net/models/).
+The unified archive redistributes original ONNX models and preprocessing/TTA helper graphs from [nagadomi/nunif](https://github.com/nagadomi/nunif/tree/master/waifu2x/unlimited_waifu2x), originally published at [unlimited.waifu2x.net/models](https://unlimited.waifu2x.net/models/).
 
 Copyright (C) 2019–2023 nagadomi. MIT license: [nunif.txt](Licenses/nunif.txt). Additional provenance and download details: [nunif-models.md](Licenses/nunif-models.md).

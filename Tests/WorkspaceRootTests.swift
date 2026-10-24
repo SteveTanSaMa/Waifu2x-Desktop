@@ -5,6 +5,61 @@ import SwiftUI
 
 @MainActor
 final class WorkspaceRootTests: XCTestCase {
+    func testFirstDownloadReplacesPreparationWithTheTutorialInTheSameWindow() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let suiteName = "Waifu2x.StartupHandoffRootTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let workspace = Workspace(persistOptions: false)
+        defer { workspace.shutdown() }
+        let onboarding = OnboardingState(defaults: defaults)
+        let gate = StartupTransferGate()
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { destination, _ in
+            StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        let host = NSHostingView(rootView: WorkspaceRootView(workspace: workspace, onboarding: onboarding,
+                                                           animates: false, startup: startup))
+        let window = makeWindow(hosting: host)
+        defer { window.close() }
+        startup.begin(reduceMotion: false) { onboarding.presentIfNeeded(arguments: []) }
+
+        try await waitFor("The initial model download must start") { manager.status == .downloading }
+        XCTAssertFalse(onboarding.isPresented)
+        XCTAssertNil(probe("onboardingAnimationBounds", in: host))
+        XCTAssertNil(probe("queueToggleBounds", in: host))
+        XCTAssertTrue(views(of: CanvasView.self, in: host).isEmpty)
+        XCTAssertTrue(views(of: CanvasControlsHostView.self, in: host).isEmpty)
+        XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey))
+
+        await gate.release()
+        try await waitFor("The verified download must hand off to the full-window tutorial") {
+            self.probe("onboardingAnimationBounds", in: host) != nil
+        }
+        XCTAssertTrue(startup.isReady)
+        XCTAssertTrue(onboarding.isPresented)
+        XCTAssertTrue(host.window === window)
+        XCTAssertNil(window.attachedSheet)
+        XCTAssertNil(probe("queueToggleBounds", in: host))
+        XCTAssertTrue(views(of: CanvasView.self, in: host).isEmpty)
+        XCTAssertTrue(views(of: CanvasControlsHostView.self, in: host).isEmpty)
+        XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey))
+
+        onboarding.complete()
+        try await waitFor("Finishing the tutorial must enter the workspace") {
+            self.probe("queueToggleBounds", in: host) != nil && self.probe("optionsToggleBounds", in: host) != nil
+        }
+        XCTAssertTrue(host.window === window)
+        XCTAssertNil(probe("onboardingAnimationBounds", in: host))
+        XCTAssertNil(workspace.input, "A fresh workspace must remain empty when the tutorial finishes without opening a sample")
+        XCTAssertTrue(views(of: CanvasView.self, in: host).isEmpty,
+                      "The native image canvas is only mounted after an image is imported")
+        XCTAssertEqual(defaults.integer(forKey: OnboardingState.completionKey), OnboardingState.currentVersion)
+    }
+
     func testStartupBlocksWorkspaceInputAndEscapeCannotSkipModelPreparation() async throws {
         let suiteName = "Waifu2x.StartupRootTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

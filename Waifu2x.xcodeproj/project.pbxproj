@@ -53,6 +53,7 @@
 		916EAF9ADA552A17F9DF1843 /* AppStartupStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667CB24456CC6EC300AD2027 /* AppStartupStateTests.swift */; };
 		994F7488857799BE26E14CF1 /* OnboardingWorkspaceDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EDA309860DA0E860CAD8601 /* OnboardingWorkspaceDiagram.swift */; };
 		9CE0DCF04EFA05AB5F9E0912 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AA0A69B349417AA3264E48 /* OnboardingTests.swift */; };
+		9EAD5220BDF6F3AFD993C5AF /* ModelArchiveExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F3128736B91A8A5AC13B6D /* ModelArchiveExtractor.swift */; };
 		9EE497B39A6EAAC05A6E9A4D /* ONNXTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9165A54AA9A669FEC5E95E /* ONNXTests.swift */; };
 		9EFBAA6A0935CA92C27A50F5 /* OnboardingIllustration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CA2F5E67C5E4F8DBCA458F /* OnboardingIllustration.swift */; };
 		A0EA41152BAF242E2CF59F12 /* ONNXConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A0609D5E8F39997D0E777E /* ONNXConfiguration.swift */; };
@@ -65,6 +66,7 @@
 		B75BF39A8C5F3C776870064C /* WorkspaceRootTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F58C76380E80AA686D3C73E /* WorkspaceRootTests.swift */; };
 		C3A748BAEB832AA530529714 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66C5BB939112B01D643F0 /* LocalizationTests.swift */; };
 		C3BD21432808BB1F4926951B /* ModelCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = 5E781E1B5E91314CC93BFD52 /* ModelCatalog.json */; };
+		C40CCAFF6BF1F2DF7AD59379 /* libarchive.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 440F54D064E4C290904C6B10 /* libarchive.tbd */; };
 		CA7E850E5C5B2595272EC790 /* ProcessingOptionHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E3659C781F97DDE60035C2 /* ProcessingOptionHints.swift */; };
 		D8CAED81E79E0AE43608054C /* libonnxruntime.1.23.2.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DAD2CBD5213AB6128F2677C7 /* TileProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0E63217054274FADE25BEE /* TileProgress.swift */; };
@@ -116,6 +118,7 @@
 		1F58C76380E80AA686D3C73E /* WorkspaceRootTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRootTests.swift; sourceTree = "<group>"; };
 		1F9165A54AA9A669FEC5E95E /* ONNXTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ONNXTests.swift; sourceTree = "<group>"; };
 		2342B3C212F80C3BD6C98E56 /* CanvasPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPanel.swift; sourceTree = "<group>"; };
+		28723F52440C501779E9F772 /* SystemArchive.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SystemArchive.h; sourceTree = "<group>"; };
 		2B09AD3D70FB407BB2DD2959 /* WindowControlPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowControlPlacement.swift; sourceTree = "<group>"; };
 		30E164A76FCFC8997E442C99 /* ModelFileDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFileDownload.swift; sourceTree = "<group>"; };
 		325228CDFE91BE3B2BC5ABFF /* ModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStore.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		3ED1400AF2B74370E388513B /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		3EDA309860DA0E860CAD8601 /* OnboardingWorkspaceDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWorkspaceDiagram.swift; sourceTree = "<group>"; };
 		412AEDC01198122E6C1530CB /* Waifu2xApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Waifu2xApp.swift; sourceTree = "<group>"; };
+		440F54D064E4C290904C6B10 /* libarchive.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libarchive.tbd; path = usr/lib/libarchive.tbd; sourceTree = SDKROOT; };
 		44A0609D5E8F39997D0E777E /* ONNXConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ONNXConfiguration.swift; sourceTree = "<group>"; };
 		4626FA1A099994C00721227D /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		46CC324046A7FB825D4CC9B9 /* ToolbarControlSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarControlSurface.swift; sourceTree = "<group>"; };
@@ -181,6 +185,7 @@
 		E7D66C5BB939112B01D643F0 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		F08C48B0AF2796A05B1848FD /* BatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchTests.swift; sourceTree = "<group>"; };
 		F0A381D7D72E807ABD20B80C /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		F2F3128736B91A8A5AC13B6D /* ModelArchiveExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelArchiveExtractor.swift; sourceTree = "<group>"; };
 		F308A7C9CDCD5C1CFC8E19CA /* CanvasPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPanels.swift; sourceTree = "<group>"; };
 		F75155918356FB1DD2E2C507 /* ProcessingOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingOptionsPanel.swift; sourceTree = "<group>"; };
 		F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libonnxruntime.1.23.2.dylib; path = Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib; sourceTree = "<group>"; };
@@ -192,6 +197,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C40CCAFF6BF1F2DF7AD59379 /* libarchive.tbd in Frameworks */,
 				7847083F5B3603929CDCF93E /* libonnxruntime.1.23.2.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -205,6 +211,7 @@
 				8FA7B47AC4E2EB5048976609 /* BatchExporter.swift */,
 				D4D5574F584BA4FAC30FB4D7 /* ImageCodec.swift */,
 				17C0F8C39469BFC0D18DE07C /* InferenceEngine.swift */,
+				F2F3128736B91A8A5AC13B6D /* ModelArchiveExtractor.swift */,
 				30E164A76FCFC8997E442C99 /* ModelFileDownload.swift */,
 				325228CDFE91BE3B2BC5ABFF /* ModelStore.swift */,
 				DACC9C88E9406F59EDAF3365 /* NcnnEngine.swift */,
@@ -362,6 +369,7 @@
 		BDFD6505CF6A92F6E6760635 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				440F54D064E4C290904C6B10 /* libarchive.tbd */,
 				F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */,
 			);
 			name = Frameworks;
@@ -380,6 +388,7 @@
 			children = (
 				5883D2F7E0641005C3D3756E /* ONNXBridge.h */,
 				71E85B6A7DC91F4D43D1E987 /* ONNXBridge.mm */,
+				28723F52440C501779E9F772 /* SystemArchive.h */,
 				CD9C816AC75C434A43D24DE8 /* Waifu2x-Bridging-Header.h */,
 			);
 			path = Interop;
@@ -571,6 +580,7 @@
 				3CD8B78FD1E4F3EF6C8B100F /* InferenceEngine.swift in Sources */,
 				09DACE2CCE6FD66D3C26C4BB /* LaunchSplashView.swift in Sources */,
 				6E44FF36AEB2F0A04EB3FFC6 /* Localization.swift in Sources */,
+				9EAD5220BDF6F3AFD993C5AF /* ModelArchiveExtractor.swift in Sources */,
 				8985D63E6275D21C8F101D04 /* ModelCatalog.swift in Sources */,
 				4D80AC0B86ECEE52D563B7A9 /* ModelDownloadManager.swift in Sources */,
 				A258409A759285654632D5D3 /* ModelDownloadView.swift in Sources */,
@@ -795,7 +805,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Vendor/onnxruntime/lib\"",
@@ -813,7 +823,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/Vendor/onnxruntime/lib",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2x;
 				PRODUCT_NAME = Waifu2x;
 				SDKROOT = macosx;
@@ -828,7 +838,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Vendor/onnxruntime/lib\"",
@@ -846,7 +856,7 @@
 					"$(inherited)",
 					"$(SRCROOT)/Vendor/onnxruntime/lib",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2x;
 				PRODUCT_NAME = Waifu2x;
 				SDKROOT = macosx;

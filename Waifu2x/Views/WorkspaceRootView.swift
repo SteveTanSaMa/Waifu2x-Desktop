@@ -37,7 +37,6 @@ struct WorkspaceRootView: View {
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .onExitCommand { _ = handleEscape() }
         .onChange(of: workspace.busy) { _, _ in openRequestedSampleWhenReady() }
-        .onChange(of: startup?.models.status) { _, _ in startup?.modelStatusChanged() }
     }
 
     private func handleEscape() -> Bool {

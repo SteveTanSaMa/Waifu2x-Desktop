@@ -12,6 +12,7 @@ final class AppStartupState {
     let models: ModelDownloadManager
     @ObservationIgnored private var launchTask: Task<Void, Never>?
     @ObservationIgnored private var hasStarted = false
+    @ObservationIgnored private var isCancelled = false
     @ObservationIgnored private var onReady: (() -> Void)?
     private let splashDuration: TimeInterval
 
@@ -26,7 +27,7 @@ final class AppStartupState {
 
     func begin(isTesting: Bool = false, reduceMotion: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
                onReady: @escaping () -> Void) {
-        guard !hasStarted else { return }
+        guard !hasStarted, !isCancelled else { return }
         hasStarted = true
         self.onReady = onReady
         // Unit tests use explicitly injected model fixtures and never initiate
@@ -49,25 +50,38 @@ final class AppStartupState {
             }
             guard let self, !Task.isCancelled else { return }
             phase = .models
+            observeModelStatus()
             models.start()
-            modelStatusChanged()
         }
     }
 
-    func modelStatusChanged() {
-        guard hasStarted, phase == .models, models.status == .ready else { return }
-        complete()
+    /// Readiness belongs to the launch owner, not to a view's render cycle.
+    /// Observation notifications arrive before the mutation, so re-read and
+    /// re-arm on the main actor after the manager has published its new state.
+    private func observeModelStatus() {
+        guard hasStarted, !isCancelled, phase == .models else { return }
+        let status = withObservationTracking {
+            models.status
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in self?.observeModelStatus() }
+        }
+        if status == .ready { complete() }
     }
 
     func cancel() {
+        isCancelled = true
+        onReady = nil
         launchTask?.cancel()
         models.cancel()
     }
 
     private func complete() {
-        guard phase != .ready else { return }
-        onReady?()
+        guard !isCancelled, phase != .ready else { return }
+        let ready = onReady
         onReady = nil
+        // Resolve first-run eligibility before the workspace is unblocked so
+        // there is no intermediate frame with an interactive canvas.
+        ready?()
         phase = .ready
     }
 

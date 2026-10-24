@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 import Darwin
 
-/// Each verified file is committed independently, so interrupted setup retains completed work.
+/// Existing caches stay usable until a complete, verified model set can replace them.
 struct ModelStore: Sendable {
     let catalog: ModelCatalog
     let paths: ModelPaths
@@ -39,6 +39,38 @@ struct ModelStore: Sendable {
         try Task.checkCancellation()
         // Staging and destination share a filesystem; rename replaces a corrupt file atomically.
         guard rename(staging.path, destination.path) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+    }
+
+    func archiveMatches(_ url: URL) throws -> Bool {
+        guard let archive = catalog.archive, try Self.isRegularFile(url, bytes: archive.bytes) else { return false }
+        return try Self.sha256(of: url) == archive.sha256
+    }
+
+    func installArchive(from downloaded: URL, progress: @Sendable (Int, String) -> Void = { _, _ in }) throws {
+        try catalog.validate()
+        guard try archiveMatches(downloaded) else {
+            throw ModelDownloadFailure.message(L("模型压缩包校验失败，请重试"))
+        }
+        try Task.checkCancellation()
+        guard (try? paths.root.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else {
+            throw ModelDownloadFailure.message(L("模型缓存目录无效，请移除符号链接后重试"))
+        }
+        let manager = FileManager.default
+        let parent = paths.root.deletingLastPathComponent()
+        try manager.createDirectory(at: parent, withIntermediateDirectories: true)
+        let staging = parent.appendingPathComponent(".models-\(UUID().uuidString).staging", isDirectory: true)
+        try manager.createDirectory(at: staging, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: staging) }
+        try ModelArchiveExtractor.extract(downloaded, to: staging, catalog: catalog, progress: progress)
+        try Task.checkCancellation()
+        if manager.fileExists(atPath: paths.root.path) {
+            // Both directories share a filesystem. Swap them without exposing a partial cache.
+            guard renamex_np(staging.path, paths.root.path, UInt32(RENAME_SWAP)) == 0 else {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+            }
+        } else if rename(staging.path, paths.root.path) != 0 {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
         }
     }

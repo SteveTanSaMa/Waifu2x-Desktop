@@ -20,6 +20,8 @@ final class LocalizationTests: XCTestCase {
         let catalog = try loadCatalog()
         XCTAssertGreaterThan(catalog.count, 200)
         for (key, entry) in catalog {
+            // L() resolves these keys at runtime, so Xcode cannot infer their use.
+            XCTAssertEqual(entry["extractionState"] as? String, "manual", key)
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
             XCTAssertEqual(Set(localizations.keys), Set(AppLocalization.supportedLanguages), key)
             let english = try translation("en", in: localizations)
@@ -42,9 +44,12 @@ final class LocalizationTests: XCTestCase {
         let files = try XCTUnwrap(FileManager.default.enumerator(at: source, includingPropertiesForKeys: nil))
         let panelFiles: Set<String> = ["ProcessingOptionsPanel.swift", "AdvancedProcessingOptions.swift", "ProcessingOptionHints.swift", "ProcessingOptions.swift"]
         let expression = try NSRegularExpression(pattern: #"\bL\(\s*"((?:[^"\\]|\\.)*)""#)
+        let implicitSwiftUIKey = try NSRegularExpression(pattern: #"\b(?:Text|Button|Label|Toggle|Picker|Section|Window|WindowGroup|CommandMenu)\(\s*""#)
         var panelKeys = Set<String>()
         for case let url as URL in files where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
+            XCTAssertTrue(implicitSwiftUIKey.matches(in: text, range: NSRange(text.startIndex..., in: text)).isEmpty,
+                          "Use L() for catalog copy or Text(verbatim:) for brands to avoid unintended Xcode extraction: \(url.lastPathComponent)")
             for match in expression.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
                 let literal = String(text[Range(match.range(at: 1), in: text)!])
                 XCTAssertFalse(literal.contains(#"\("#), "Localized keys must be stable: \(url.lastPathComponent)")
@@ -78,6 +83,11 @@ final class LocalizationTests: XCTestCase {
             let count = localizer.string("为所选 %d 张图片调整", arguments: [12])
             XCTAssertTrue(count.contains("12"))
             XCTAssertFalse(count.contains("%d"))
+            let percent = localizer.string("%d%%", arguments: [42])
+            XCTAssertEqual(percent, "42%", language)
+            let literalPercent = localizer.string("实际像素 · 100%（⌘1）")
+            XCTAssertTrue(literalPercent.contains("100%"), language)
+            XCTAssertFalse(literalPercent.contains("100%%"), language)
         }
         let english = AppLocalization(preferredLanguages: ["de-DE", "es-ES"])
         XCTAssertEqual(english.string("图像增强"), "Image enhancement")
@@ -85,6 +95,28 @@ final class LocalizationTests: XCTestCase {
         XCTAssertTrue(count.contains("12"))
         XCTAssertFalse(count.contains("%d"))
         XCTAssertFalse(count.contains("所选"))
+    }
+
+    func testNativeInfoPlistLocalizationsAreIncludedInTheBuiltApp() throws {
+        let project = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = project.appendingPathComponent("Waifu2x/Resources/Localizations")
+        let languages = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+            .map { $0.deletingPathExtension().lastPathComponent }
+        XCTAssertEqual(Set(languages), Set(AppLocalization.supportedLanguages))
+        let documentTypes = try XCTUnwrap(Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]])
+        let documentNames = documentTypes.compactMap { $0["CFBundleTypeName"] as? String }
+        let expectedKeys = Set(documentNames + ["CFBundleDisplayName"])
+        for language in AppLocalization.supportedLanguages {
+            let sourceURL = source.appendingPathComponent("\(language).lproj/InfoPlist.strings")
+            let sourceStrings = try loadStrings(at: sourceURL)
+            XCTAssertEqual(Set(sourceStrings.keys), expectedKeys, language)
+            XCTAssertEqual(sourceStrings["CFBundleDisplayName"], "Waifu2x", language)
+            XCTAssertTrue(sourceStrings.values.allSatisfy { !$0.isEmpty }, language)
+            let resourceURL = try XCTUnwrap(Bundle.main.url(forResource: language, withExtension: "lproj"))
+            let compiledStrings = try loadStrings(at: resourceURL.appendingPathComponent("InfoPlist.strings"))
+            XCTAssertEqual(compiledStrings, sourceStrings, language)
+        }
     }
 
     func testMissingTranslationUsesEnglishInsteadOfAnotherLanguage() throws {
@@ -110,10 +142,17 @@ final class LocalizationTests: XCTestCase {
     private func translation(_ language: String, in localizations: [String: Any]) throws -> String {
         let item = try XCTUnwrap(localizations[language] as? [String: Any])
         let unit = try XCTUnwrap(item["stringUnit"] as? [String: String])
+        XCTAssertEqual(unit["state"], "translated", language)
         return try XCTUnwrap(unit["value"])
     }
 
+    private func loadStrings(at url: URL) throws -> [String: String] {
+        let data = try Data(contentsOf: url)
+        return try XCTUnwrap(PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: String])
+    }
+
     private func formatArguments(_ text: String) -> [String] {
+        let text = text.replacingOccurrences(of: "%%", with: "")
         let expression = try! NSRegularExpression(pattern: #"%(?:(\d+)\$)?([-+0 #]*(?:\d+)?(?:\.\d+)?(?:l[diu]|[@diufge]))"#)
         return expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).enumerated().map { index, match in
             let position = Range(match.range(at: 1), in: text).map { String(text[$0]) } ?? "\(index + 1)"

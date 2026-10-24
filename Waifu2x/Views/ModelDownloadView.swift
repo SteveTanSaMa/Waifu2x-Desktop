@@ -79,7 +79,7 @@ struct ModelDownloadView: View {
             Image(systemName: "mountain.2")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(Color(nsColor: ThemeColors.textAccent))
-            Text("Waifu2x").font(.system(size: 16, weight: .semibold))
+            Text(verbatim: "Waifu2x").font(.system(size: 16, weight: .semibold))
             Spacer(minLength: 16)
             Text(L("模型准备")).font(.system(size: 13)).foregroundStyle(.secondary)
         }
@@ -133,7 +133,7 @@ struct ModelDownloadView: View {
             stateDetails
                 .padding(.bottom, 24)
             action.frame(minHeight: 44, alignment: .leading)
-            Text(L("首次模型约 1 GB，仅需下载一次"))
+            Text(L("首次模型打包下载，仅需准备一次"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 16)

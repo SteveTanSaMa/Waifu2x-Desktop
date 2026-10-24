@@ -15,12 +15,21 @@ struct ModelCatalog: Codable, Sendable {
     let schemaVersion: Int
     let catalogVersion: String
     let files: [File]
+    let archive: File?
+
+    init(schemaVersion: Int, catalogVersion: String, files: [File], archive: File? = nil) {
+        self.schemaVersion = schemaVersion
+        self.catalogVersion = catalogVersion
+        self.files = files
+        self.archive = archive
+    }
 
     var totalModelBytes: Int64 { files.reduce(0) { $0 + $1.bytes } }
 
     /// Changes to a source, digest, size or destination invalidate opaque resume data.
     var identity: String {
-        let fields = [String(schemaVersion), catalogVersion] + files.flatMap {
+        let entries = files + (archive.map { [$0] } ?? [])
+        let fields = [String(schemaVersion), catalogVersion] + entries.flatMap {
             [$0.path, String($0.bytes), $0.sha256, $0.sourceURL.absoluteString]
         }
         return SHA256.hash(data: Data(fields.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined()
@@ -35,12 +44,21 @@ struct ModelCatalog: Codable, Sendable {
     }
 
     func validate() throws {
-        guard schemaVersion == 2, catalogVersion == ModelPaths.catalogVersion,
+        guard (schemaVersion == 2 || schemaVersion == 3), catalogVersion == ModelPaths.catalogVersion,
               !files.isEmpty, files.count <= 512,
               Set(files.map(\.path)).count == files.count else {
             throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
         }
-        for file in files {
+        if schemaVersion == 3 && archive == nil {
+            throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
+        }
+        if let archive {
+            guard archive.path.hasSuffix(".tar.xz"), !archive.path.contains("/"),
+                  !files.contains(where: { $0.path == archive.path }) else {
+                throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
+            }
+        }
+        for file in files + (archive.map { [$0] } ?? []) {
             try Self.validateRelativePath(file.path)
             guard file.bytes > 0, file.bytes <= 2_000_000_000, Self.isSHA256(file.sha256) else {
                 throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))

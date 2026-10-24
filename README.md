@@ -4,7 +4,7 @@
 
 A native macOS app for image upscaling and denoising, with on-device processing and a quiet, turquoise workspace.
 
-**Version 1.0.0 · macOS 26 or later**
+**Version 1.0.1 · macOS 26 or later**
 
 ## Download and install
 
@@ -25,14 +25,14 @@ The app uses a certificate-free ad-hoc signature and is **not Developer ID signe
 
 The first-run sequence is **splash → model preparation → tutorial → workspace**.
 
-Model weights are downloaded on demand rather than included in the app. The initial catalog contains **99 model and helper files**, totaling **1,095,327,613 bytes (about 1.1 GB)**. The download page shows real byte and file progress, supports pause/resume and retry, and reveals its landscape illustration as the download advances. Models are checked against their expected sizes and SHA-256 hashes before use.
+Model weights are downloaded on demand rather than included in the app. Version 1.0.1 downloads one compressed [`Waifu2x-models-v1.tar.xz` archive](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.1/Waifu2x-models-v1.tar.xz) from this project's GitHub Release. The download is **839,373,332 bytes (about 839 MB)**, about **23.4% smaller** than the unpacked model data. It expands to **99 model and helper files**, totaling **1,095,327,613 bytes (about 1.1 GB)**. The download page shows real progress, supports pause/resume and retry, and reveals its landscape illustration as the download advances. The archive and its extracted files are checked against their expected sizes and SHA-256 hashes before use.
 
-Models come directly from their upstream sources:
+The archive preserves the upstream model files from:
 
 - ONNX models and helper graphs: [unlimited.waifu2x.net/models](https://unlimited.waifu2x.net/models/), from [nagadomi/nunif](https://github.com/nagadomi/nunif/tree/master/waifu2x/unlimited_waifu2x)
 - CUNet and Upconv ncnn models: [waifu2x-ncnn-vulkan, release 20250915](https://github.com/nihui/waifu2x-ncnn-vulkan/releases/tag/20250915), pinned to commit [`a86cfb0`](https://github.com/nihui/waifu2x-ncnn-vulkan/tree/a86cfb043e6482b5f08778a114df9b5faf6e73b7/models)
 
-The complete URLs, sizes, and hashes are recorded in [ModelCatalog.json](Waifu2x/Resources/ModelCatalog.json). Network access is needed to obtain missing models. Image enhancement runs on your Mac; your images are not uploaded.
+The archive's download size, URL, and checksum, along with the original file URLs, sizes, and hashes, are recorded in [ModelCatalog.json](Waifu2x/Resources/ModelCatalog.json). Network access is needed to obtain missing models. Image enhancement runs on your Mac; your images are not uploaded.
 
 ## Build and run
 
@@ -72,7 +72,18 @@ bash script/package_release.sh
 
 On an Apple Silicon Mac, this builds a Release app, trims all bundled Mach-O binaries to arm64, applies certificate-free ad-hoc signatures, verifies the bundle, and creates a DMG, ZIP, and `SHA256SUMS` in `dist/`. Model weights are not bundled.
 
-[GitHub Actions](.github/workflows/release.yml) runs unit tests and packages the app with Xcode 27.0 on Apple Silicon for pushes to `main`, pull requests, and manual runs. To publish a new version, update the app version and either push a matching `vX.Y.Z` tag, push a commit to `main` whose first line is exactly `release: vX.Y.Z`, or run the workflow on `main` with **publish** enabled. A release is published only after tests, packaging, and checksum verification pass. Published releases are never overwritten by this workflow.
+Prepare the separate model archive from a verified model cache:
+
+```sh
+python3 script/fetch_test_models.py
+python3 script/package_models.py --release v1.0.1 --update-catalog
+```
+
+This creates `dist/Waifu2x-models-v1.tar.xz` and records its metadata in the catalog. The archive contains the catalog's relative `ONNXModels/` and `Engine/` paths directly, without an outer directory.
+
+[GitHub Actions](.github/workflows/release.yml) runs unit tests and packages the app with Xcode 27.0 on Apple Silicon for pushes to `main`, pull requests, and manual runs. Before publishing, update the app version and catalog archive metadata, then prepare a draft `vX.Y.Z` release targeting the final commit SHA and upload the model archive named in the catalog. Its catalog URL must point to that release, and its size and SHA-256 must match the uploaded archive.
+
+To publish the prepared version, either push a matching `vX.Y.Z` tag, push a commit to `main` whose first line is exactly `release: vX.Y.Z`, or run the workflow on `main` with **publish** enabled. The workflow checks the draft's commit, downloads and verifies its existing model archive, and adds it to `SHA256SUMS` alongside the DMG and ZIP. It publishes as **Waifu2x Desktop X.Y.Z** only after tests, packaging, and checksum verification pass. Published releases are never overwritten by this workflow.
 
 ## Tests
 
@@ -90,7 +101,7 @@ Run the full suite, including real inference:
 ./script/test.sh --integration
 ```
 
-Integration mode first downloads and SHA-256-verifies the catalog into the ignored `build/TestModels/models-v1/` cache. Verified files are reused on later runs. To fetch or check that cache separately:
+Integration mode reuses a complete, SHA-256-verified cache offline. Otherwise it downloads the single model archive, verifies it, and safely extracts and checks every file before replacing the ignored `build/TestModels/models-v1/` cache. To prepare or check that cache separately:
 
 ```sh
 python3 script/fetch_test_models.py
@@ -98,6 +109,19 @@ python3 script/fetch_test_models.py --check
 ```
 
 `--check` only checks local file sizes and hashes; it does not download files. In Xcode, **⌘U** skips inference tests when models are unavailable and runs them when a valid cache is present.
+
+Verify and install a local archive into a fresh cache before publishing:
+
+```sh
+python3 script/fetch_test_models.py --archive dist/Waifu2x-models-v1.tar.xz --root build/FreshTestModels/models-v1
+python3 script/fetch_test_models.py --check --root build/FreshTestModels/models-v1
+```
+
+Run the model archive tooling tests without Xcode or network access:
+
+```sh
+python3 -m unittest discover -s script -p test_fetch_test_models.py
+```
 
 ## Artwork and third-party components
 

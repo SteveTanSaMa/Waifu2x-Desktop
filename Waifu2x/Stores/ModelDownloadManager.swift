@@ -38,7 +38,7 @@ final class ModelDownloadManager {
             let loaded = try catalog ?? ModelCatalog.load()
             try loaded.validate()
             self.catalog = loaded; catalogError = nil
-            totalFiles = loaded.files.count; totalBytes = loaded.totalModelBytes
+            totalFiles = loaded.files.count; totalBytes = loaded.archive?.bytes ?? loaded.totalModelBytes
         } catch {
             self.catalog = nil; catalogError = error.localizedDescription
         }
@@ -61,56 +61,62 @@ final class ModelDownloadManager {
                     throw ModelDownloadFailure.message(catalogError ?? L("模型清单无效，请重新安装完整应用"))
                 }
                 let store = ModelStore(catalog: catalog, paths: paths)
-                var verified = try await Self.background {
-                    try store.validatedFiles { [weak self] count, bytes, name in
+                let verified = try await Self.background {
+                    try store.validatedFiles { [weak self] count, _, name in
                         Task { @MainActor in
                             guard let self, self.operation == id, self.status == .checking else { return }
                             self.currentName = name
-                            if !preservesProgressWhileChecking {
-                                self.completedFiles = count
-                                self.setBytes(completed: bytes, current: 0)
-                            }
+                            if !preservesProgressWhileChecking { self.completedFiles = count }
                         }
                     }
                 }
                 try check(id)
-                let pending = catalog.files.filter { !verified.contains($0.path) }
-                let verifiedBytes = catalog.files.filter { verified.contains($0.path) }.reduce(0) { $0 + $1.bytes }
-                // Keep a paused drawing intact during the full SHA scan. Publish the new
-                // verified cache and usable partial file together once that scan finishes.
-                let pendingResume = pending.first.flatMap { self.readResume(for: $0, store: store) }
                 completedFiles = verified.count
-                setBytes(completed: verifiedBytes, current: pendingResume?.downloadedBytes ?? 0)
-                if verified.count == catalog.files.count { removeResume(store); markReady(); return }
-                for file in pending {
-                    try check(id)
-                    currentFile = file
-                    status = .downloading; currentName = file.path
-                    let partial = store.pendingURL(for: file)
-                    try? FileManager.default.removeItem(at: partial)
-                    let transfer = transportFactory(partial, file.bytes)
+                if verified.count == catalog.files.count {
+                    removeResume(store)
+                    if let archive = catalog.archive { try? FileManager.default.removeItem(at: store.pendingURL(for: archive)) }
+                    markReady()
+                    return
+                }
+                guard let archive = catalog.archive else {
+                    throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
+                }
+                currentFile = archive
+                let pending = store.pendingURL(for: archive)
+                let resume = readResume(for: archive, store: store)
+                // A verified archive survives termination during extraction, avoiding another download.
+                let cachedArchive = try await Self.background { try store.archiveMatches(pending) }
+                try check(id)
+                if !cachedArchive {
+                    setBytes(completed: 0, current: resume?.downloadedBytes ?? 0)
+                    try? FileManager.default.removeItem(at: pending)
+                    let transfer = transportFactory(pending, archive.bytes)
                     self.transfer = transfer
-                    let resume = pendingResume?.file == file ? pendingResume : nil
-                    let baseBytes = completedBytes
-                    let downloaded = try await transfer.download(from: file.sourceURL, resumeData: resume?.data) { [weak self] bytes, _ in
+                    status = .downloading; currentName = archive.path
+                    _ = try await transfer.download(from: archive.sourceURL, resumeData: resume?.data) { [weak self] bytes, _ in
                         Task { @MainActor in
-                            guard let self, self.operation == id, self.status == .downloading,
-                                  self.currentFile?.path == file.path else { return }
-                            self.setBytes(completed: baseBytes, current: min(file.bytes, max(0, bytes)))
+                            guard let self, self.operation == id, self.status == .downloading else { return }
+                            self.setBytes(completed: 0, current: min(archive.bytes, max(0, bytes)))
                         }
                     }
-                    defer { try? FileManager.default.removeItem(at: downloaded) }
                     try check(id)
-                    setBytes(completed: baseBytes, current: file.bytes)
-                    status = .verifying; currentName = file.path
-                    try await Self.background { try store.install(file, from: downloaded) }
-                    try check(id)
-                    verified.insert(file.path); completedFiles = verified.count
-                    setBytes(completed: baseBytes + file.bytes, current: 0)
-                    removeResume(store)
-                    self.transfer = nil; currentFile = nil
+                    self.transfer = nil
+                }
+                setBytes(completed: 0, current: archive.bytes)
+                status = .verifying; currentName = L("正在解压模型包")
+                removeResume(store)
+                try await Self.background {
+                    try store.installArchive(from: pending) { [weak self] count, name in
+                        Task { @MainActor in
+                            guard let self, self.operation == id, self.status == .verifying else { return }
+                            self.completedFiles = max(verified.count, count)
+                            self.currentName = L("正在解压模型包") + "\n" + name
+                        }
+                    }
                 }
                 try check(id)
+                try? FileManager.default.removeItem(at: pending)
+                currentFile = nil
                 markReady()
             } catch {
                 guard operation == id, status != .paused, !Task.isCancelled else { return }
@@ -121,7 +127,7 @@ final class ModelDownloadManager {
                         saveResume(data, file: file, store: store)
                     } else {
                         removeResume(store)
-                        setBytes(completed: completedBytes, current: 0)
+                        setBytes(completed: 0, current: 0)
                     }
                     if let file = currentFile { try? FileManager.default.removeItem(at: store.pendingURL(for: file)) }
                 }
@@ -157,7 +163,7 @@ final class ModelDownloadManager {
         } else {
             let active = work
             active?.cancel()
-            // Await cancellation of verification and removal of its per-file staging copy.
+            // Cancel verification/extraction; a complete downloaded archive remains reusable.
             await active?.value
             if status != .ready, status != .failed {
                 status = .paused; currentName = L("模型下载已暂停")

@@ -39,6 +39,7 @@ targets:
       - path: Waifu2x/Resources/Localizations
         buildPhase: resources
     dependencies:
+      - sdk: libarchive.tbd
       - framework: Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib
         embed: true
         codeSign: true
@@ -77,8 +78,8 @@ targets:
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: '1.0.0'
-        CURRENT_PROJECT_VERSION: '1'
+        MARKETING_VERSION: '1.0.1'
+        CURRENT_PROJECT_VERSION: '2'
     preBuildScripts:
       - name: Prepare inference runtime without models
         script: 'bash "$SRCROOT/script/prepare_runtime.sh"'

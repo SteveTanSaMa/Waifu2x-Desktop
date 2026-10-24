@@ -26,7 +26,7 @@ struct LaunchSplashView: View {
                         .opacity(reduceMotion ? 1 : min(1, fraction / 0.2))
                         .padding(.bottom, 28)
                         .accessibilityHidden(true)
-                    Text("Waifu2x")
+                    Text(verbatim: "Waifu2x")
                         .font(.system(size: 32, weight: .semibold, design: .rounded))
                         .tracking(-0.8)
                     Text(L("让每一处细节，慢慢清晰"))

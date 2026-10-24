@@ -48,6 +48,9 @@ jobs:
       - name: Run unit tests
         run: bash script/test.sh --unit
 
+      - name: Test model archive tooling
+        run: python3 -m unittest discover -s script -p test_fetch_test_models.py
+
       - name: Build and package Apple Silicon app
         id: package
         run: bash script/package_release.sh
@@ -84,7 +87,7 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
        startsWith(github.event.head_commit.message, 'release: v'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: write
       actions: read
@@ -109,25 +112,38 @@ jobs:
             test "$GITHUB_REF" = refs/heads/main
           fi
 
-      - name: Download and verify packages
+      - name: Download app packages
         run: |
           gh run download "$GITHUB_RUN_ID" --name Waifu2x-macos-arm64 --dir dist
+
+      - name: Verify prepared draft and model archive
+        run: |
+          # Prepare this draft and upload its model archive before triggering publication.
+          # Published releases and drafts targeting another commit cannot be overwritten.
+          gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > release.json
+          jq -e --arg sha "$GITHUB_SHA" '.isDraft and .targetCommitish == $sha' release.json
+
+          CATALOG=Waifu2x/Resources/ModelCatalog.json
+          jq -e '.schemaVersion == 3' "$CATALOG"
+          MODEL_ARCHIVE_NAME="$(jq -er '.archive.path | select(test("^[A-Za-z0-9][A-Za-z0-9._-]*\\.tar\\.xz$"))' "$CATALOG")"
+          MODEL_ARCHIVE_BYTES="$(jq -er '.archive.bytes | select(type == "number" and . > 0 and floor == .)' "$CATALOG")"
+          MODEL_ARCHIVE_SHA256="$(jq -er '.archive.sha256 | select(test("^[a-f0-9]{64}$"))' "$CATALOG")"
+          MODEL_ARCHIVE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$MODEL_ARCHIVE_NAME"
+          jq -e --arg url "$MODEL_ARCHIVE_URL" '.archive.sourceURL == $url' "$CATALOG"
+
+          gh release download "$RELEASE_TAG" --pattern "$MODEL_ARCHIVE_NAME" --dir dist
+          test "$(wc -c < "dist/$MODEL_ARCHIVE_NAME" | tr -d '[:space:]')" = "$MODEL_ARCHIVE_BYTES"
+          printf '%s  %s\n' "$MODEL_ARCHIVE_SHA256" "$MODEL_ARCHIVE_NAME" >> dist/SHA256SUMS
           cd dist
           sha256sum --check SHA256SUMS
 
-      - name: Create draft, upload packages, and publish
+      - name: Upload app packages and publish
         run: |
-          if gh release view "$RELEASE_TAG" --json isDraft,targetCommitish > release.json; then
-            # Only resume our own incomplete draft. Published releases are immutable here.
-            jq -e --arg sha "$GITHUB_SHA" '.isDraft and .targetCommitish == $sha' release.json
-          else
-            notes=(--generate-notes)
-            if [[ -f ".github/release-notes/$RELEASE_TAG.md" ]]; then
-              notes=(--notes-file ".github/release-notes/$RELEASE_TAG.md")
-            fi
-            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" \
-              --title "Waifu2x $RELEASE_VERSION — Apple Silicon" --draft "${notes[@]}"
+          if [[ -f ".github/release-notes/$RELEASE_TAG.md" ]]; then
+            gh release edit "$RELEASE_TAG" --notes-file ".github/release-notes/$RELEASE_TAG.md"
           fi
+          gh release edit "$RELEASE_TAG" --title "Waifu2x Desktop $RELEASE_VERSION"
+          # The verified model archive is already on the draft; never replace it here.
           gh release upload "$RELEASE_TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS --clobber
           gh release edit "$RELEASE_TAG" --draft=false --latest
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

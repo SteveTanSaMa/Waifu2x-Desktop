@@ -78,6 +78,7 @@ final class OnboardingState {
     func back() { step = OnboardingStep(rawValue: step.rawValue - 1) ?? step }
 
     func complete() {
+        guard isPresented else { return }
         if persistsCompletion { defaults.set(Self.currentVersion, forKey: Self.completionKey) }
         isPresented = false
     }

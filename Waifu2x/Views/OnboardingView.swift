@@ -49,7 +49,7 @@ struct OnboardingView: View {
                 Image(systemName: "sparkles.rectangle.stack")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color(nsColor: ThemeColors.textAccent))
-                Text("Waifu2x").font(.system(size: 16, weight: .semibold))
+                Text(verbatim: "Waifu2x").font(.system(size: 16, weight: .semibold))
                 Text(L("快速入门")).font(.system(size: 13)).foregroundStyle(.secondary)
                     .lineLimit(1)
                     .padding(.leading, 3)

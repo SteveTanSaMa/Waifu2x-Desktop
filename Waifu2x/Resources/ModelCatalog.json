@@ -1,6 +1,12 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "catalogVersion": "models-v1",
+  "archive": {
+    "path": "Waifu2x-models-v1.tar.xz",
+    "bytes": 839373332,
+    "sha256": "399a08474a8c6f0f191f863f60b24def10c6b96eb4c9610eadf5a2b351d68253",
+    "sourceURL": "https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.1/Waifu2x-models-v1.tar.xz"
+  },
   "files": [
     {
       "path": "ONNXModels/swin_unet_v3/art/scale1x.onnx",

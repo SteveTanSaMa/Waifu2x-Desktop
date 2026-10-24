@@ -4,7 +4,7 @@
 
 原生 macOS 图片放大与降噪应用，在本机处理图片，以安静的青绿色工作区呈现画面细节。
 
-**版本 1.0.0 · macOS 26 或更高版本**
+**版本 1.0.1 · macOS 26 或更高版本**
 
 ## 下载与安装
 
@@ -25,14 +25,14 @@
 
 首次使用按以下顺序进入工作区：**开屏 → 模型准备 → 教程 → 工作区**。
 
-模型权重按需下载，不随应用内置。初始清单包含 **99 个模型及辅助文件**，合计 **1,095,327,613 字节，约 1.1 GB**。下载页面显示真实的字节和文件进度，支持暂停、继续和重试，左侧山海画作随下载进度逐步成形。模型在使用前会核对预期大小及 SHA-256 校验值。
+模型权重按需下载，不随应用内置。1.0.1 版本从本项目的 GitHub Release 下载单个压缩归档 [`Waifu2x-models-v1.tar.xz`](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.1/Waifu2x-models-v1.tar.xz)，实际下载 **839,373,332 字节（约 839 MB）**，比解压后的模型数据**减少约 23.4%**。解压后包含 **99 个模型及辅助文件**，合计 **1,095,327,613 字节，约 1.1 GB**。下载页面显示真实进度，支持暂停、继续和重试，左侧山海画作随下载进度逐步成形。归档包及解压后的每个文件在使用前均会核对预期大小及 SHA-256 校验值。
 
-模型直接来自上游官方来源：
+归档包保留以下上游来源的原始模型文件：
 
 - ONNX 模型及辅助计算图：[unlimited.waifu2x.net/models](https://unlimited.waifu2x.net/models/)，来源为 [nagadomi/nunif](https://github.com/nagadomi/nunif/tree/master/waifu2x/unlimited_waifu2x)
 - CUNet 与 Upconv ncnn 模型：[waifu2x-ncnn-vulkan 的 20250915 发布版本](https://github.com/nihui/waifu2x-ncnn-vulkan/releases/tag/20250915)，固定至提交 [`a86cfb0`](https://github.com/nihui/waifu2x-ncnn-vulkan/tree/a86cfb043e6482b5f08778a114df9b5faf6e73b7/models)
 
-完整下载地址、文件大小和校验值记录于 [ModelCatalog.json](Waifu2x/Resources/ModelCatalog.json)。缺少模型时需要联网下载；图片增强在 Mac 本机完成，图片不会上传。
+归档包的实际下载大小、地址及校验值，以及原始文件的来源地址、大小和校验值，均记录于 [ModelCatalog.json](Waifu2x/Resources/ModelCatalog.json)。缺少模型时需要联网下载；图片增强在 Mac 本机完成，图片不会上传。
 
 ## 构建与运行
 
@@ -72,7 +72,18 @@ bash script/package_release.sh
 
 在 Apple Silicon Mac 上，此脚本构建 Release 应用，将所有内置 Mach-O 程序和动态库裁剪为 arm64，应用无需证书的临时签名并验证应用包，最后在 `dist/` 生成 DMG、ZIP 与 `SHA256SUMS`。模型权重不随包内置。
 
-[GitHub Actions](.github/workflows/release.yml) 在 Apple Silicon 上使用 Xcode 27.0，对 `main` 推送、拉取请求和手动运行执行单元测试并打包。发布新版本时，更新应用版本号，然后推送对应的 `vX.Y.Z` 标签，或向 `main` 推送首行严格为 `release: vX.Y.Z` 的提交；也可在 `main` 手动运行工作流并启用 **publish**。只有测试、打包和校验全部通过后才会公开发布；工作流不会覆盖已发布的版本。
+使用已验证的模型缓存准备独立模型归档：
+
+```sh
+python3 script/fetch_test_models.py
+python3 script/package_models.py --release v1.0.1 --update-catalog
+```
+
+此操作生成 `dist/Waifu2x-models-v1.tar.xz`，并将归档信息写入清单。归档直接包含清单中的相对路径 `ONNXModels/` 与 `Engine/`，没有额外的外层目录。
+
+[GitHub Actions](.github/workflows/release.yml) 在 Apple Silicon 上使用 Xcode 27.0，对 `main` 推送、拉取请求和手动运行执行单元测试并打包。发布前，先更新应用版本号和清单中的归档信息，再准备目标为最终提交 SHA 的 `vX.Y.Z` 草稿发布，并上传清单指定的模型归档包。清单中的归档地址必须指向此次发布，记录的大小和 SHA-256 必须与已上传的归档一致。
+
+发布已准备的版本时，推送对应的 `vX.Y.Z` 标签，或向 `main` 推送首行严格为 `release: vX.Y.Z` 的提交；也可在 `main` 手动运行工作流并启用 **publish**。工作流会核对草稿所指向的提交，下载并验证已有模型归档，将其与 DMG、ZIP 一并列入 `SHA256SUMS`。只有测试、打包和校验全部通过后，才会以 **Waifu2x Desktop X.Y.Z** 为标题公开发布；工作流不会覆盖已发布的版本。
 
 ## 测试
 
@@ -90,7 +101,7 @@ bash script/package_release.sh
 ./script/test.sh --integration
 ```
 
-集成测试会先按照清单下载模型并验证 SHA-256，缓存到被 Git 忽略的 `build/TestModels/models-v1/`。后续运行会复用已验证的文件。也可单独获取或检查测试缓存：
+集成测试会离线复用完整且通过 SHA-256 验证的缓存；缓存不完整时，下载单个模型归档并核对大小与校验值，安全解压并逐一验证文件后，再替换被 Git 忽略的 `build/TestModels/models-v1/` 缓存。也可单独准备或检查测试缓存：
 
 ```sh
 python3 script/fetch_test_models.py
@@ -98,6 +109,19 @@ python3 script/fetch_test_models.py --check
 ```
 
 `--check` 只检查本地文件大小和校验值，不联网下载。在 Xcode 中使用 **⌘U** 时，缺少模型会跳过推理测试，存在有效缓存时则实际运行。
+
+发布前，可将本地归档校验并安装到全新缓存：
+
+```sh
+python3 script/fetch_test_models.py --archive dist/Waifu2x-models-v1.tar.xz --root build/FreshTestModels/models-v1
+python3 script/fetch_test_models.py --check --root build/FreshTestModels/models-v1
+```
+
+模型归档工具测试无需 Xcode 或网络连接：
+
+```sh
+python3 -m unittest discover -s script -p test_fetch_test_models.py
+```
 
 ## 画作与第三方组件
 

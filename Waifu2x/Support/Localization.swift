@@ -43,6 +43,8 @@ struct AppLocalization {
     }
 }
 
+/// Resolves a manually maintained catalog key. Chinese lookup keys are stable
+/// identifiers; the catalog's English source values provide the default copy.
 func L(_ key: String, _ arguments: CVarArg...) -> String {
     AppLocalization.current.string(key, arguments: arguments)
 }

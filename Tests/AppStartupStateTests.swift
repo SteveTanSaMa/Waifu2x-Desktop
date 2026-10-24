@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class AppStartupStateTests: XCTestCase {
     func testSplashFinishesBeforeModelCheckAndTutorialWaitsForVerifiedFiles() async throws {
-        let fixture = try makeFixture(installed: true)
+        let fixture = try makeStartupModelFixture(installed: true)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
         let startup = AppStartupState(models: manager, splashDuration: 0.08)
@@ -13,39 +13,108 @@ final class AppStartupStateTests: XCTestCase {
         startup.begin(reduceMotion: false) { tutorialPresentations += 1 }
         XCTAssertEqual(startup.phase, .splash)
         XCTAssertEqual(manager.currentName, "")
-        startup.modelStatusChanged()
         XCTAssertEqual(tutorialPresentations, 0)
-        try await wait { manager.status == .ready }
-        XCTAssertEqual(startup.phase, .models)
+        try await wait { startup.isReady }
+        XCTAssertEqual(manager.status, .ready)
         XCTAssertEqual(startup.splashProgress, 1)
-        XCTAssertEqual(tutorialPresentations, 0)
-        startup.modelStatusChanged()
         XCTAssertEqual(startup.phase, .ready)
         XCTAssertEqual(tutorialPresentations, 1)
-        startup.modelStatusChanged()
         startup.begin { tutorialPresentations += 1 }
         XCTAssertEqual(tutorialPresentations, 1)
     }
 
-    func testMissingOrCorruptedModelsKeepTutorialAndWorkspaceBlocked() async throws {
-        let fixture = try makeFixture(installed: false)
+    func testFirstDownloadAutomaticallyPresentsTutorialWithoutAViewNotification() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let suiteName = "Waifu2x.StartupFirstDownloadTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let onboarding = OnboardingState(defaults: defaults)
+        let gate = StartupTransferGate()
         let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
-                                           transportFactory: { _, _ in StartupFailedTransfer() })
+                                           transportFactory: { destination, _ in
+            StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        var tutorialPresentations = 0
+        startup.begin(reduceMotion: false) {
+            XCTAssertFalse(startup.isReady, "First-run eligibility must be resolved before the canvas is unblocked")
+            tutorialPresentations += 1
+            onboarding.presentIfNeeded(arguments: [])
+        }
+        try await wait { manager.status == .downloading }
+        XCTAssertEqual(startup.phase, .models)
+        XCTAssertFalse(onboarding.isPresented)
+        XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey))
+
+        await gate.release()
+        // There is deliberately no WorkspaceRootView or manual status callback:
+        // the launch owner must deliver download completion by itself.
+        try await wait { startup.isReady }
+        XCTAssertEqual(manager.status, .ready)
+        XCTAssertEqual(try ModelStore(catalog: fixture.catalog, paths: fixture.paths).validatedFiles().count, 1)
+        XCTAssertEqual(tutorialPresentations, 1)
+        XCTAssertTrue(onboarding.isPresented)
+        XCTAssertEqual(onboarding.step, .addImages)
+        XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey),
+                     "Downloading models must not mark the tutorial completed")
+
+        onboarding.complete()
+        XCTAssertEqual(defaults.integer(forKey: OnboardingState.completionKey), OnboardingState.currentVersion)
+    }
+
+    func testCompletedVersionOneTutorialIsNotRepeatedAfterDownloadingModelsAgain() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let suiteName = "Waifu2x.StartupUpgradeTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.set(1, forKey: OnboardingState.completionKey)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let onboarding = OnboardingState(defaults: defaults)
+        let gate = StartupTransferGate()
+        await gate.release()
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { destination, _ in
+            StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        startup.begin(reduceMotion: false) { onboarding.presentIfNeeded(arguments: []) }
+        try await wait { startup.isReady }
+        XCTAssertEqual(manager.status, .ready)
+        XCTAssertFalse(onboarding.isPresented, "Users who completed the 1.0.0 tutorial keep their completion when upgrading")
+        XCTAssertEqual(defaults.integer(forKey: OnboardingState.completionKey), 1)
+    }
+
+    func testFailedPreparationBlocksTheTutorialAndRetryAutomaticallyCompletesStartup() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let attempts = StartupTransferAttempts()
+        let gate = StartupTransferGate()
+        await gate.release()
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { destination, _ in
+            if attempts.next() == 1 { return StartupFailedTransfer() }
+            return StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
         let startup = AppStartupState(models: manager, splashDuration: 0)
         var tutorialWasShown = false
         startup.begin(reduceMotion: false) { tutorialWasShown = true }
         try await wait { manager.status == .failed }
-        startup.modelStatusChanged()
         XCTAssertEqual(startup.phase, .models)
         XCTAssertFalse(startup.isReady)
         XCTAssertFalse(tutorialWasShown)
         XCTAssertNotNil(manager.errorMessage)
         XCTAssertEqual(startup.downloadPresentation.status, .failed)
+
+        manager.retry()
+        try await wait { startup.isReady }
+        XCTAssertEqual(manager.status, .ready)
+        XCTAssertTrue(tutorialWasShown, "Retry must keep the model-to-tutorial handoff connected")
     }
 
     func testMountingTestSceneDoesNotStartANetworkRequest() throws {
-        let fixture = try makeFixture(installed: false)
+        let fixture = try makeStartupModelFixture(installed: false)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
         let startup = AppStartupState(models: manager)
@@ -63,21 +132,68 @@ final class AppStartupStateTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTFail("Startup did not reach the expected state")
+        throw NSError(domain: "AppStartupStateTests.Timeout", code: 1)
     }
+}
 
-    private func makeFixture(installed: Bool) throws -> (directory: URL, paths: ModelPaths, catalog: ModelCatalog) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let paths = ModelPaths(root: directory.appendingPathComponent(ModelPaths.catalogVersion))
-        let content = Data("verified model fixture".utf8)
-        let digest = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
-        let file = ModelCatalog.File(path: "ONNXModels/fixture.onnx", bytes: Int64(content.count), sha256: digest,
-                                     sourceURL: URL(string: "https://models.example.invalid/fixture.onnx")!)
-        let catalog = ModelCatalog(schemaVersion: 2, catalogVersion: ModelPaths.catalogVersion, files: [file])
+func makeStartupModelFixture(installed: Bool) throws -> (directory: URL, paths: ModelPaths, catalog: ModelCatalog, archivePayload: Data) {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let paths = ModelPaths(root: directory.appendingPathComponent(ModelPaths.catalogVersion))
+    let content = Data("verified model fixture".utf8)
+    let digest = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
+    let file = ModelCatalog.File(path: "ONNXModels/fixture.onnx", bytes: Int64(content.count), sha256: digest,
+                                 sourceURL: URL(string: "https://models.example.invalid/fixture.onnx")!)
+    let sourceRoot = directory.appendingPathComponent("archive-source")
+    let source = sourceRoot.appendingPathComponent(file.path)
+    try FileManager.default.createDirectory(at: source.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try content.write(to: source)
+    let archiveURL = directory.appendingPathComponent("Waifu2x-models.tar.xz")
+    let tar = Process()
+    tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+    tar.arguments = ["-cJf", archiveURL.path, "-C", sourceRoot.path, file.path]
+    try tar.run()
+    tar.waitUntilExit()
+    guard tar.terminationStatus == 0 else { throw NSError(domain: "AppStartupStateTests.Archive", code: 1) }
+    let archivePayload = try Data(contentsOf: archiveURL)
+    let archiveDigest = SHA256.hash(data: archivePayload).map { String(format: "%02x", $0) }.joined()
+    let archive = ModelCatalog.File(path: archiveURL.lastPathComponent, bytes: Int64(archivePayload.count), sha256: archiveDigest,
+                                    sourceURL: URL(string: "https://models.example.invalid/Waifu2x-models.tar.xz")!)
+    let catalog = ModelCatalog(schemaVersion: 3, catalogVersion: ModelPaths.catalogVersion, files: [file], archive: archive)
+    if installed {
         let model = paths.root.appendingPathComponent(file.path)
         try FileManager.default.createDirectory(at: model.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try (installed ? content : Data("incomplete".utf8)).write(to: model)
-        return (directory, paths, catalog)
+        try content.write(to: model)
     }
+    return (directory, paths, catalog, archivePayload)
+}
+
+actor StartupTransferGate {
+    private var isReleased = false
+    func release() { isReleased = true }
+    func wait() async throws {
+        while !isReleased { try await Task.sleep(for: .milliseconds(5)) }
+    }
+}
+
+final class StartupSuccessfulTransfer: ModelFileTransferring, @unchecked Sendable {
+    let destination: URL
+    let payload: Data
+    let gate: StartupTransferGate
+    var resumeData: Data? { nil }
+    init(destination: URL, payload: Data, gate: StartupTransferGate) {
+        self.destination = destination; self.payload = payload; self.gate = gate
+    }
+    func download(from url: URL, resumeData: Data?, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
+        progress(Int64(payload.count / 2), Int64(payload.count))
+        try await gate.wait()
+        try Task.checkCancellation()
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try payload.write(to: destination)
+        progress(Int64(payload.count), Int64(payload.count))
+        return destination
+    }
+    func pause() async -> Data? { nil }
+    func cancel() {}
 }
 
 private final class StartupFailedTransfer: ModelFileTransferring, @unchecked Sendable {
@@ -87,4 +203,15 @@ private final class StartupFailedTransfer: ModelFileTransferring, @unchecked Sen
     }
     func pause() async -> Data? { nil }
     func cancel() {}
+}
+
+private final class StartupTransferAttempts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func next() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
+        return count
+    }
 }
