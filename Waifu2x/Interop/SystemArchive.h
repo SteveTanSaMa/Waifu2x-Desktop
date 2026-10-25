@@ -12,6 +12,7 @@ struct archive_entry;
 struct archive *archive_read_new(void);
 int archive_read_support_filter_xz(struct archive *);
 int archive_read_support_format_tar(struct archive *);
+int archive_read_support_format_zip(struct archive *);
 int archive_read_open_filename(struct archive *, const char *, size_t);
 int archive_read_next_header(struct archive *, struct archive_entry **);
 ssize_t archive_read_data(struct archive *, void *, size_t);

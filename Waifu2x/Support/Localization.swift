@@ -1,10 +1,10 @@
 import Foundation
 
-/// Uses the first supported system language, including per-app language choices
-/// supplied by macOS. No language preference is stored by the application.
+/// Resolves an explicit application language or the first supported system
+/// language, including per-app language choices supplied by macOS.
 struct AppLocalization {
     static let supportedLanguages = ["en", "zh-Hans", "zh-Hant", "ja", "fr", "ko", "ru"]
-    static let current = AppLocalization(preferredLanguages: Locale.preferredLanguages)
+    static var current: AppLocalization { AppPreferences.shared.localizer }
 
     let language: String
     let locale: Locale

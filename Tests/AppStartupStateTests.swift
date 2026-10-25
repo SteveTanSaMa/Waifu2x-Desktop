@@ -8,9 +8,14 @@ final class AppStartupStateTests: XCTestCase {
         let fixture = try makeStartupModelFixture(installed: true)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
-        let startup = AppStartupState(models: manager, splashDuration: 0.08)
+        let startup = AppStartupState(models: manager, splashDuration: 0.08,
+                                      completionHoldDuration: 0, revealDuration: 0)
         var tutorialPresentations = 0
-        startup.begin(reduceMotion: false) { tutorialPresentations += 1 }
+        startup.begin(reduceMotion: false) {
+            XCTAssertEqual(startup.phase, .splash, "A verified cache must never enter the install surface")
+            XCTAssertFalse(startup.showsModelPreparation)
+            tutorialPresentations += 1
+        }
         XCTAssertEqual(startup.phase, .splash)
         XCTAssertEqual(manager.currentName, "")
         XCTAssertEqual(tutorialPresentations, 0)
@@ -18,6 +23,7 @@ final class AppStartupStateTests: XCTestCase {
         XCTAssertEqual(manager.status, .ready)
         XCTAssertEqual(startup.splashProgress, 1)
         XCTAssertEqual(startup.phase, .ready)
+        XCTAssertFalse(startup.showsModelPreparation)
         XCTAssertEqual(tutorialPresentations, 1)
         startup.begin { tutorialPresentations += 1 }
         XCTAssertEqual(tutorialPresentations, 1)
@@ -35,7 +41,8 @@ final class AppStartupStateTests: XCTestCase {
                                            transportFactory: { destination, _ in
             StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
         })
-        let startup = AppStartupState(models: manager, splashDuration: 0)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0)
         defer { startup.cancel() }
         var tutorialPresentations = 0
         startup.begin(reduceMotion: false) {
@@ -45,6 +52,7 @@ final class AppStartupStateTests: XCTestCase {
         }
         try await wait { manager.status == .downloading }
         XCTAssertEqual(startup.phase, .models)
+        XCTAssertTrue(startup.showsModelPreparation)
         XCTAssertFalse(onboarding.isPresented)
         XCTAssertNil(defaults.object(forKey: OnboardingState.completionKey))
 
@@ -78,7 +86,8 @@ final class AppStartupStateTests: XCTestCase {
                                            transportFactory: { destination, _ in
             StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
         })
-        let startup = AppStartupState(models: manager, splashDuration: 0)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0)
         startup.begin(reduceMotion: false) { onboarding.presentIfNeeded(arguments: []) }
         try await wait { startup.isReady }
         XCTAssertEqual(manager.status, .ready)
@@ -97,11 +106,13 @@ final class AppStartupStateTests: XCTestCase {
             if attempts.next() == 1 { return StartupFailedTransfer() }
             return StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
         })
-        let startup = AppStartupState(models: manager, splashDuration: 0)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0)
         var tutorialWasShown = false
         startup.begin(reduceMotion: false) { tutorialWasShown = true }
         try await wait { manager.status == .failed }
         XCTAssertEqual(startup.phase, .models)
+        XCTAssertTrue(startup.showsModelPreparation, "Preparation failures must remain visible for retry")
         XCTAssertFalse(startup.isReady)
         XCTAssertFalse(tutorialWasShown)
         XCTAssertNotNil(manager.errorMessage)
@@ -124,6 +135,162 @@ final class AppStartupStateTests: XCTestCase {
         XCTAssertTrue(startup.isReady)
         XCTAssertEqual(manager.status, .checking)
         XCTAssertEqual(manager.currentName, "")
+    }
+
+    func testVerifiedModelsKeepTheSplashThroughoutTheHandoffWithoutFlashingTheInstaller() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0.08, revealDuration: 0.12)
+        defer { startup.cancel() }
+        var readyCallbacks = 0
+        startup.begin(reduceMotion: false) {
+            XCTAssertFalse(startup.isReady)
+            readyCallbacks += 1
+        }
+        try await wait { startup.phase == .completed }
+        XCTAssertEqual(manager.status, .ready)
+        XCTAssertFalse(startup.showsModelPreparation, "Cache verification must not mount a completed install screen")
+        XCTAssertEqual(startup.downloadPresentation.fraction, 1)
+        XCTAssertEqual(readyCallbacks, 1, "Tutorial eligibility is resolved before the handoff begins")
+        XCTAssertFalse(startup.isReady, "The outgoing splash must not unlock workspace input")
+
+        try await wait { startup.phase == .revealing }
+        XCTAssertFalse(startup.showsModelPreparation, "The outgoing surface must remain the splash during the crossfade")
+        XCTAssertFalse(startup.isReady, "Workspace commands stay blocked until the crossfade ends")
+        XCTAssertEqual(readyCallbacks, 1)
+        try await wait { startup.isReady }
+        XCTAssertFalse(startup.showsModelPreparation)
+        XCTAssertEqual(readyCallbacks, 1)
+    }
+
+    func testReducedMotionUsesAShortHandoffAfterVerification() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        startup.begin(reduceMotion: true) {}
+        try await wait { startup.phase == .completed }
+        XCTAssertFalse(startup.showsModelPreparation)
+        XCTAssertTrue(startup.usesReducedMotion)
+        XCTAssertEqual(startup.revealDuration, 0.18, accuracy: 0.001)
+        XCTAssertFalse(startup.isReady)
+        try await wait { startup.isReady }
+        XCTAssertEqual(manager.status, .ready)
+    }
+
+    func testInstalledModelsUseABriefRevealOnNormalLaunch() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        startup.begin(reduceMotion: false) {}
+        try await wait { startup.phase == .completed }
+        XCTAssertFalse(startup.usesReducedMotion)
+        XCTAssertFalse(startup.showsModelPreparation)
+        XCTAssertEqual(startup.revealDuration, 0.35, accuracy: 0.001)
+        try await wait { startup.isReady }
+    }
+
+    func testFirstDownloadKeepsTheFullLandscapeReveal() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let gate = StartupTransferGate()
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { destination, _ in
+            StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        startup.begin(reduceMotion: false) {}
+        try await wait { manager.status == .downloading }
+        XCTAssertTrue(startup.showsModelPreparation)
+        await gate.release()
+        try await wait { startup.phase == .completed }
+        XCTAssertEqual(startup.revealDuration, 0.65, accuracy: 0.001)
+        XCTAssertFalse(startup.isReady)
+    }
+
+    func testCachedArchiveExtractionStillShowsTheInstallSurfaceAndFullReveal() async throws {
+        let fixture = try makeStartupModelFixture(installed: false)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let store = ModelStore(catalog: fixture.catalog, paths: fixture.paths)
+        let archive = try XCTUnwrap(fixture.catalog.archive)
+        let pending = store.pendingURL(for: archive)
+        try FileManager.default.createDirectory(at: pending.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fixture.archivePayload.write(to: pending)
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { _, _ in
+            XCTFail("A verified archive must be reused without another download")
+            return StartupFailedTransfer()
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0)
+        defer { startup.cancel() }
+        startup.begin(reduceMotion: false) {}
+        try await wait { startup.phase == .completed }
+        XCTAssertEqual(manager.status, .ready)
+        XCTAssertTrue(startup.showsModelPreparation, "Extraction is a real install even when its archive is already cached")
+        XCTAssertEqual(startup.revealDuration, 0.65, accuracy: 0.001)
+        XCTAssertEqual(try store.validatedFiles().count, fixture.catalog.files.count)
+    }
+
+    func testCorruptInstalledModelStillEntersRepairBeforeUnlockingTheWorkspace() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let file = try XCTUnwrap(fixture.catalog.files.first)
+        try Data(repeating: 0, count: Int(file.bytes)).write(to: fixture.paths.root.appendingPathComponent(file.path))
+        let gate = StartupTransferGate()
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths,
+                                           transportFactory: { destination, _ in
+            StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
+        })
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0)
+        defer { startup.cancel() }
+        var readyCallbacks = 0
+        startup.begin(reduceMotion: false) { readyCallbacks += 1 }
+        try await wait { manager.status == .downloading }
+        XCTAssertEqual(startup.phase, .models)
+        XCTAssertTrue(startup.showsModelPreparation)
+        XCTAssertFalse(startup.isReady)
+        XCTAssertEqual(readyCallbacks, 0, "Suppressing routine verification UI must not skip integrity checks")
+        await gate.release()
+        try await wait { startup.isReady }
+        XCTAssertEqual(readyCallbacks, 1)
+        XCTAssertEqual(try ModelStore(catalog: fixture.catalog, paths: fixture.paths).validatedFiles().count, 1)
+    }
+
+    func testCancellingTheCompletedHoldCannotRevealOrUnlockTheWorkspace() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0.08, revealDuration: 0.04)
+        var readyCallbacks = 0
+        startup.begin(reduceMotion: false) { readyCallbacks += 1 }
+        try await wait { startup.phase == .completed }
+        startup.cancel()
+        try await Task.sleep(for: .milliseconds(160))
+        XCTAssertEqual(startup.phase, .completed)
+        XCTAssertFalse(startup.isReady)
+        XCTAssertEqual(readyCallbacks, 1)
+    }
+
+    func testCancellingTheRevealCannotUnlockTheWorkspace() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0.08)
+        startup.begin(reduceMotion: false) {}
+        try await wait { startup.phase == .revealing }
+        startup.cancel()
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertEqual(startup.phase, .revealing)
+        XCTAssertFalse(startup.isReady)
     }
 
     private func wait(until condition: @escaping () -> Bool) async throws {

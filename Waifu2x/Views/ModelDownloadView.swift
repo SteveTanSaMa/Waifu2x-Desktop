@@ -18,11 +18,12 @@ struct ModelDownloadPresentation: Equatable {
     let errorMessage: String?
     /// Enables pause/resume/retry, never permission to enter the workspace.
     let canStart: Bool
+    let isIncrementalRepair: Bool
 
     init(progress: Double = 0, downloadedBytes: Int64 = 0, totalBytes: Int64? = nil,
          completedFiles: Int = 0, totalFiles: Int = 0, currentName: String = "",
          status: ModelDownloadStatus = .checking, errorMessage: String? = nil,
-         canStart: Bool = true) {
+         canStart: Bool = true, isIncrementalRepair: Bool = false) {
         self.progress = progress
         self.downloadedBytes = downloadedBytes
         self.totalBytes = totalBytes
@@ -32,6 +33,7 @@ struct ModelDownloadPresentation: Equatable {
         self.status = status
         self.errorMessage = errorMessage
         self.canStart = canStart
+        self.isIncrementalRepair = isIncrementalRepair
     }
 
     var fraction: Double { progress.isFinite ? min(1, max(0, progress)) : 0 }
@@ -116,15 +118,15 @@ struct ModelDownloadView: View {
 
     private var downloadContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L("首次准备"))
+            Text(L("模型准备"))
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color(nsColor: ThemeColors.textAccent))
                 .padding(.bottom, 18)
-            Text(L("为清晰，备好画笔"))
+            Text(presentation.isIncrementalRepair ? L("正在补全缺失的模型") : L("为清晰，备好画笔"))
                 .font(.system(size: 32, weight: .semibold)).tracking(-0.6)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 16)
-            Text(L("先下载增强模型，之后即可在本机处理图片"))
+            Text(presentation.isIncrementalRepair ? L("只补全缺失或受损的模型，已验证的文件会保留") : L("先下载增强模型，之后即可在本机处理图片"))
                 .font(.system(size: 14)).lineSpacing(5).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 30)
@@ -133,7 +135,7 @@ struct ModelDownloadView: View {
             stateDetails
                 .padding(.bottom, 24)
             action.frame(minHeight: 44, alignment: .leading)
-            Text(L("首次模型打包下载，仅需准备一次"))
+            Text(presentation.isIncrementalRepair ? L("相同内容只下载一次，完成后会再次校验所有模型") : L("下载后的模型会保存在本机供后续使用"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 16)
@@ -146,7 +148,8 @@ struct ModelDownloadView: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(statusTitle).font(.system(size: 12, weight: .medium))
                 Spacer(minLength: 0)
-                if presentation.totalFiles > 0 {
+                // These are extracted model files, not separate archive downloads.
+                if presentation.status == .verifying, presentation.totalFiles > 0 {
                     Text(L("%d / %d 个文件", presentation.completedFiles, presentation.totalFiles))
                         .font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
                 }

@@ -6,6 +6,11 @@
 #include <memory>
 #include <vector>
 
+NSString *W2XRuntimeVersion(void) {
+    const char *version = OrtGetApiBase()->GetVersionString();
+    return version ? [NSString stringWithUTF8String:version] ?: @"Unknown" : @"Unknown";
+}
+
 @implementation W2XTensor
 - (instancetype)initWithData:(NSData *)data shape:(NSArray<NSNumber *> *)shape integer:(BOOL)integer {
     if ((self = [super init])) { _data = data; _shape = shape; _integer = integer; }

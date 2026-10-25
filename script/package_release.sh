@@ -76,9 +76,31 @@ ln -s /Applications "$STAGING_DIR/Applications"
 /usr/bin/hdiutil create -volname Waifu2x -srcfolder "$STAGING_DIR" \
     -format UDZO -ov "$DMG_PATH"
 /usr/bin/hdiutil verify "$DMG_PATH"
+UPDATE_ARGUMENTS=(--app "$APP" --full-archive "$ZIP_PATH" --release "v$VERSION" --output-dir "$PROJECT_DIR/dist")
+if [[ -n "${APP_UPDATE_BASE_ZIP:-}" ]]; then
+    UPDATE_ARGUMENTS+=(--previous-archive "$APP_UPDATE_BASE_ZIP")
+fi
+python3 "$PROJECT_DIR/script/package_app_updates.py" "${UPDATE_ARGUMENTS[@]}"
+python3 - "$PROJECT_DIR/dist" "$NAME" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+root, name = Path(sys.argv[1]), sys.argv[2]
+catalog = json.loads((root / 'Waifu2x-update.json').read_text())
+names = [name + '.dmg', name + '.zip', 'Waifu2x-update.json']
+names += [item['archive']['path'] for item in catalog['deltas']]
+with (root / 'SHA256SUMS').open('w') as output:
+    for name in names:
+        digest = hashlib.sha256()
+        with (root / name).open('rb') as source:
+            for chunk in iter(lambda: source.read(4 * 1024 * 1024), b''):
+                digest.update(chunk)
+        output.write(digest.hexdigest() + '  ' + name + '\n')
+PY
 (
     cd "$PROJECT_DIR/dist"
-    /usr/bin/shasum -a 256 "$NAME.dmg" "$NAME.zip" > SHA256SUMS
     /usr/bin/shasum -a 256 --check SHA256SUMS
 )
 

@@ -16,12 +16,15 @@ struct ModelCatalog: Codable, Sendable {
     let catalogVersion: String
     let files: [File]
     let archive: File?
+    let repairManifestURL: URL?
 
-    init(schemaVersion: Int, catalogVersion: String, files: [File], archive: File? = nil) {
+    init(schemaVersion: Int, catalogVersion: String, files: [File], archive: File? = nil,
+         repairManifestURL: URL? = nil) {
         self.schemaVersion = schemaVersion
         self.catalogVersion = catalogVersion
         self.files = files
         self.archive = archive
+        self.repairManifestURL = repairManifestURL
     }
 
     var totalModelBytes: Int64 { files.reduce(0) { $0 + $1.bytes } }
@@ -29,7 +32,7 @@ struct ModelCatalog: Codable, Sendable {
     /// Changes to a source, digest, size or destination invalidate opaque resume data.
     var identity: String {
         let entries = files + (archive.map { [$0] } ?? [])
-        let fields = [String(schemaVersion), catalogVersion] + entries.flatMap {
+        let fields = [String(schemaVersion), catalogVersion, repairManifestURL?.absoluteString ?? ""] + entries.flatMap {
             [$0.path, String($0.bytes), $0.sha256, $0.sourceURL.absoluteString]
         }
         return SHA256.hash(data: Data(fields.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined()
@@ -51,6 +54,12 @@ struct ModelCatalog: Codable, Sendable {
         }
         if schemaVersion == 3 && archive == nil {
             throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
+        }
+        if let repairManifestURL {
+            guard archive != nil,
+                  Self.isOfficialRepairURL(repairManifestURL, filename: "Waifu2x-\(catalogVersion)-repair.json", allowsLatest: true) else {
+                throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
+            }
         }
         if let archive {
             guard archive.path.hasSuffix(".tar.xz"), !archive.path.contains("/"),
@@ -78,8 +87,25 @@ struct ModelCatalog: Codable, Sendable {
             throw ModelDownloadFailure.message(L("模型文件路径无效"))
         }
     }
-    private static func isSHA256(_ value: String) -> Bool {
+    static func isSHA256(_ value: String) -> Bool {
         value.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+
+    /// Repair assets stay in the official repository. A later release may host
+    /// identical payloads, but every raw file still has to match this catalog.
+    static func isOfficialRepairURL(_ url: URL, filename: String, allowsLatest: Bool = false) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme == "https", components.host == "github.com", components.port == nil,
+              components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil,
+              components.percentEncodedPath == components.path else { return false }
+        let prefix = "/SteveTanSaMa/Waifu2x-Desktop/releases/"
+        if allowsLatest && components.path == prefix + "latest/download/" + filename { return true }
+        guard components.path.hasPrefix(prefix + "download/") else { return false }
+        let suffix = String(components.path.dropFirst((prefix + "download/").count))
+        let parts = suffix.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 2 && String(parts[1]) == filename
+            && String(parts[0]).range(of: #"^v[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil
     }
 }
 

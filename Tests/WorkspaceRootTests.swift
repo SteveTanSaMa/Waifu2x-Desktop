@@ -19,7 +19,8 @@ final class WorkspaceRootTests: XCTestCase {
                                            transportFactory: { destination, _ in
             StartupSuccessfulTransfer(destination: destination, payload: fixture.archivePayload, gate: gate)
         })
-        let startup = AppStartupState(models: manager, splashDuration: 0)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0, revealDuration: 0)
         defer { startup.cancel() }
         let host = NSHostingView(rootView: WorkspaceRootView(workspace: workspace, onboarding: onboarding,
                                                            animates: false, startup: startup))
@@ -85,6 +86,58 @@ final class WorkspaceRootTests: XCTestCase {
         XCTAssertEqual(defaults.integer(forKey: OnboardingState.completionKey), 0)
         XCTAssertEqual(workspace.activePanels, panels)
         XCTAssertNil(window.attachedSheet)
+    }
+
+    func testTutorialAcceptsEscapeDuringRevealWhileWorkspaceRemainsBlocked() async throws {
+        let fixture = try makeStartupModelFixture(installed: true)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let suiteName = "Waifu2x.StartupRevealRootTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let workspace = Workspace(persistOptions: false)
+        defer { workspace.shutdown() }
+        workspace.activePanels = [.images, .options]
+        let initialPanels = workspace.activePanels
+        let onboarding = OnboardingState(defaults: defaults)
+        let manager = ModelDownloadManager(catalog: fixture.catalog, paths: fixture.paths)
+        let startup = AppStartupState(models: manager, splashDuration: 0,
+                                      completionHoldDuration: 0.08, revealDuration: 0.45)
+        defer { startup.cancel() }
+        let host = NSHostingView(rootView: WorkspaceRootView(workspace: workspace, onboarding: onboarding,
+                                                           animates: false, startup: startup))
+        let window = makeWindow(hosting: host)
+        defer { window.close() }
+        startup.begin(reduceMotion: false) { onboarding.presentIfNeeded(arguments: []) }
+
+        try await waitFor("The completed painting must stay mounted for its short hold") {
+            startup.phase == .completed
+        }
+        XCTAssertTrue(onboarding.isPresented)
+        XCTAssertNil(probe("onboardingAnimationBounds", in: host))
+        XCTAssertTrue(views(of: CanvasView.self, in: host).isEmpty)
+        let monitor = try XCTUnwrap(views(of: WindowProbe.self, in: host).first)
+        XCTAssertTrue(monitor.onEscape?() ?? false)
+        XCTAssertTrue(onboarding.isPresented, "Escape cannot consume a tutorial that has not appeared yet")
+
+        try await waitFor("The tutorial must appear while the startup crossfade is active") {
+            startup.phase == .revealing && self.probe("onboardingAnimationBounds", in: host) != nil
+        }
+        XCTAssertFalse(startup.isReady)
+        XCTAssertTrue(views(of: CanvasView.self, in: host).isEmpty)
+        XCTAssertTrue(views(of: CanvasControlsHostView.self, in: host).isEmpty)
+        XCTAssertTrue(monitor.onEscape?() ?? false)
+        XCTAssertFalse(onboarding.isPresented, "The visible tutorial must accept Escape during the crossfade")
+        XCTAssertEqual(defaults.integer(forKey: OnboardingState.completionKey), OnboardingState.currentVersion)
+        XCTAssertEqual(workspace.activePanels, initialPanels)
+        XCTAssertTrue(monitor.onEscape?() ?? false)
+        XCTAssertEqual(workspace.activePanels, initialPanels,
+                       "Finishing the tutorial early must not pass Escape to the workspace during the reveal")
+
+        try await waitFor("The handoff must eventually unlock the workspace") { startup.isReady }
+        XCTAssertTrue(monitor.onEscape?() ?? false)
+        XCTAssertTrue(workspace.activePanels.isEmpty)
+        XCTAssertTrue(host.window === window)
+        XCTAssertEqual(views(of: WindowProbe.self, in: host).count, 1)
     }
 
     func testTutorialUsesMainWindowAndPreservesWorkspaceWhenCompletedAndReopened() async throws {

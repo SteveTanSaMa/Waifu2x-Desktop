@@ -3,25 +3,74 @@ import SwiftUI
 @main
 struct Waifu2xApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var workspace = Workspace(persistOptions: !ProcessInfo.processInfo.arguments.contains("--isolated-session"))
+    @State private var workspace: Workspace
     @State private var didConfigure = false
     @State private var onboarding = OnboardingState()
-    @State private var startup = AppStartupState()
+    @State private var startup: AppStartupState
+    @State private var preferences: AppPreferences
+    @State private var workflow: ProcessingWorkflow
+    @State private var maintenance: ModelMaintenance
+    @State private var settingsNavigation = SettingsNavigation()
+    @State private var updates = AppUpdateChecker()
+    @State private var integrity: FileIntegrityChecker
     private var blocksWorkspace: Bool { onboarding.isPresented || !startup.isReady }
+    private var blocksProcessing: Bool { blocksWorkspace || !maintenance.modelsCanBeUsed }
+    private var canShowTutorial: Bool { !workspace.busy && !onboarding.isPresented && startup.isReady }
+
+    init() {
+        let preferences = AppPreferences.shared
+        let workflow = ProcessingWorkflow(preferences: preferences)
+        let workspace = Workspace(persistOptions: !ProcessInfo.processInfo.arguments.contains("--isolated-session"),
+                                  workflow: workflow)
+        let startup = AppStartupState()
+        let integrity = FileIntegrityChecker()
+        let maintenance = ModelMaintenance(checker: integrity, canRepair: { startup.isReady && !workspace.busy })
+        integrity.canCheck = { [weak workspace, weak maintenance] in
+            workspace?.isProcessing == false && maintenance?.isRepairing != true
+        }
+        workspace.canStartProcessing = { [weak maintenance] in maintenance?.modelsCanBeUsed == true }
+        _preferences = State(initialValue: preferences)
+        _workflow = State(initialValue: workflow)
+        _workspace = State(initialValue: workspace)
+        _startup = State(initialValue: startup)
+        _integrity = State(initialValue: integrity)
+        _maintenance = State(initialValue: maintenance)
+    }
+
     var body: some Scene {
+        let locale = preferences.locale
+        let colorScheme = selectedColorScheme
         Window(Text(verbatim: "Waifu2x"), id: "main") {
             WorkspaceRootView(workspace: workspace, onboarding: onboarding, startup: startup)
+                .background(MainWindowReference(navigation: settingsNavigation))
                 .tint(.accentColor)
+                .environment(\.locale, locale)
+                .preferredColorScheme(colorScheme)
                 .onAppear {
                     guard !didConfigure else { return }
                     didConfigure = true
-                    delegate.onTerminate = { workspace.shutdown(); startup.cancel() }
-                    delegate.prepareForTermination = { await startup.models.pauseForTermination() }
+                    settingsNavigation.preventsFocusDismissal = { [workflow = self.workflow] in
+                        workflow.isRequestingNotificationPermission
+                    }
+                    delegate.onTerminate = {
+                        workspace.shutdown(); startup.cancel(); maintenance.cancelRepair()
+                        integrity.cancel(); updates.downloader.cancel()
+                    }
+                    delegate.prepareForTermination = {
+                        workspace.shutdown()
+                        await startup.models.pauseForTermination()
+                        await maintenance.pauseForTermination()
+                        await workspace.prepareForTermination()
+                    }
                     delegate.connectOpenImages { workspace.load($0) }
                     if ProcessInfo.processInfo.arguments.contains("--sample") { workspace.openSample() }
                     let isTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
                     startup.begin(isTesting: isTesting) {
+                        if startup.models.status == .ready { maintenance.recordStartupReady() }
                         onboarding.presentIfNeeded(arguments: ProcessInfo.processInfo.arguments, isTesting: isTesting)
+                        if !isTesting && !ProcessInfo.processInfo.arguments.contains("--isolated-session") {
+                            updates.checkAutomaticallyIfNeeded(enabled: preferences.automaticallyCheckUpdates)
+                        }
                     }
                 }
         }
@@ -29,9 +78,9 @@ struct Waifu2xApp: App {
         .defaultSize(width: CanvasPanelLayout.minimumWindowSize.width, height: 760)
         .defaultLaunchBehavior(.presented)
         .commands {
-            CommandGroup(replacing: .help) {
-                Button(L("快速入门…")) { onboarding.show() }.disabled(workspace.busy || blocksWorkspace)
-            }
+            PreferencesCommands(navigation: settingsNavigation, updates: updates, integrity: integrity,
+                                modelsAreReady: startup.isReady && !maintenance.isRepairing, canShowTutorial: canShowTutorial,
+                                onShowTutorial: onboarding.show)
             CommandGroup(replacing: .newItem) {
                 Button(L("打开图片…"), action: workspace.chooseImage).keyboardShortcut("o").disabled(workspace.busy || blocksWorkspace)
                 Button(L("打开示例图片"), action: workspace.openSample).disabled(workspace.busy || blocksWorkspace)
@@ -47,11 +96,11 @@ struct Waifu2xApp: App {
             }
             CommandMenu(L("图片")) {
                 Button(workspace.isMultiSelecting ? L("增强所选图片") : L("增强当前图片"), action: workspace.process).keyboardShortcut(.return, modifiers: .command)
-                    .disabled(!workspace.canProcessSelection || blocksWorkspace)
+                    .disabled(!workspace.canProcessSelection || blocksProcessing)
                 Button(L("增强全部图片"), action: workspace.processAll).keyboardShortcut(.return, modifiers: [.command, .option])
-                    .disabled(workspace.images.isEmpty || workspace.busy || !workspace.options.isValid || blocksWorkspace)
+                    .disabled(workspace.images.isEmpty || workspace.busy || !workspace.options.isValid || blocksProcessing)
                 Button(L("增强未完成或设置已变更的图片"), action: workspace.processPending)
-                    .disabled(workspace.pendingImages.isEmpty || workspace.busy || !workspace.options.isValid || blocksWorkspace)
+                    .disabled(workspace.pendingImages.isEmpty || workspace.busy || !workspace.options.isValid || blocksProcessing)
                 Button(L("图片列表")) { workspace.showsImages.toggle() }.disabled(blocksWorkspace)
                 Button(workspace.activePanels.isEmpty ? L("取消处理") : L("收起面板"), action: workspace.dismissPanelOrCancel)
                     .keyboardShortcut(.escape, modifiers: [])
@@ -69,8 +118,25 @@ struct Waifu2xApp: App {
                 }
             }
         }
+
+        Settings {
+            SettingsView(preferences: preferences, navigation: settingsNavigation,
+                         updates: updates, integrity: integrity, modelsAreReady: startup.isReady,
+                         canShowTutorial: canShowTutorial, onShowTutorial: onboarding.show,
+                         workflow: workflow, maintenance: maintenance)
+                .environment(\.locale, locale)
+                .preferredColorScheme(colorScheme)
+        }
+        .windowResizability(.contentSize)
     }
 
+    private var selectedColorScheme: ColorScheme? {
+        switch preferences.appearance {
+        case "light": .light
+        case "dark": .dark
+        default: nil
+        }
+    }
 }
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {

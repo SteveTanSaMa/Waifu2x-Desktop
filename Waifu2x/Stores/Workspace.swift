@@ -9,7 +9,9 @@ final class Workspace {
     private(set) var isMultiSelecting = false
     private(set) var markedIDs: Set<UUID> = []
     var processingImages: [QueueImage] { isMultiSelecting ? images.filter { markedIDs.contains($0.id) } : selectedImage.map { [$0] } ?? [] }
-    var canProcessSelection: Bool { !processingImages.isEmpty && !isLoading && !isExporting && pendingRestart == nil && options.isValid }
+    var canStartProcessing: @MainActor () -> Bool = { true }
+    var canProcessSelection: Bool { !isShuttingDown && canStartProcessing() && !processingImages.isEmpty && !isLoading && !isExporting && pendingRestart == nil && options.isValid }
+    @ObservationIgnored var workflow: ProcessingWorkflow?
 
     func toggleMultiSelection() {
         guard !busy else { return }
@@ -68,13 +70,18 @@ final class Workspace {
     }
     private var pendingRestart: ProcessingRequest?
     private var cancellationRequested = false
-    @ObservationIgnored nonisolated(unsafe) private var engine: InferenceEngine?
+    private var isShuttingDown = false
+    @ObservationIgnored private let makeInference: @MainActor () -> any WorkspaceInference
+    @ObservationIgnored nonisolated(unsafe) private var engine: (any WorkspaceInference)?
     @ObservationIgnored nonisolated(unsafe) private var task: Task<Void, Never>?
     private var operationID = UUID()
     let directory: URL
 
-    init(persistOptions: Bool = true) {
+    init(persistOptions: Bool = true, workflow: ProcessingWorkflow? = nil,
+         makeInference: @escaping @MainActor () -> any WorkspaceInference = { InferenceEngine() }) {
         self.persistOptions = persistOptions
+        self.workflow = workflow
+        self.makeInference = makeInference
         if persistOptions, let data = UserDefaults.standard.data(forKey: "processingOptions.v2"),
            let saved = try? JSONDecoder().decode(ProcessingOptions.self, from: data) { options = saved }
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("Waifu2x-\(UUID().uuidString)", isDirectory: true)
@@ -182,7 +189,7 @@ final class Workspace {
     func processPending() { requestProcessing(pendingImages) }
 
     private func requestProcessing(_ queue: [QueueImage]) {
-        guard !queue.isEmpty, !isLoading, !isExporting, pendingRestart == nil, options.isValid else { return }
+        guard !isShuttingDown, canStartProcessing(), !queue.isEmpty, !isLoading, !isExporting, pendingRestart == nil, options.isValid else { return }
         if isProcessing {
             restartCandidateIDs = queue.map(\.id)
             showsRestartConfirmation = true
@@ -197,7 +204,7 @@ final class Workspace {
     func confirmRestart() {
         let request = ProcessingRequest(imageIDs: restartCandidateIDs, settings: options)
         dismissRestartConfirmation()
-        guard !request.imageIDs.isEmpty, request.settings.isValid else { return }
+        guard !isShuttingDown, canStartProcessing(), !request.imageIDs.isEmpty, request.settings.isValid else { return }
         if isProcessing {
             // The current task owns cleanup. It starts the replacement only
             // after the inference worker has returned and released its resources.
@@ -211,8 +218,9 @@ final class Workspace {
 
     private func beginProcessing(_ queue: [QueueImage], settings requestedSettings: ProcessingOptions? = nil) {
         let settings = requestedSettings ?? options
-        guard !queue.isEmpty, !busy, settings.isValid else { return }
+        guard !isShuttingDown, canStartProcessing(), !queue.isEmpty, !busy, settings.isValid else { return }
         let directory = directory
+        let workflow = workflow
         let id = UUID()
         operationID = id
         cancellationRequested = false
@@ -235,12 +243,15 @@ final class Workspace {
                 stage = L("正在载入模型")
                 startedAt = Date()
                 image.state = .processing
-                let engine = InferenceEngine()
+                let engine = makeInference()
                 self.engine = engine
+                let lease = workflow?.beginInference()
+                defer { if let lease { workflow?.endInference(lease) } }
                 do {
                     let input = image.input
                     let url = try await Task.detached(priority: .userInitiated) {
-                        try engine.run(input: input, options: settings, directory: directory, progress: { progress in
+                        defer { lease?.finish() }
+                        return try engine.run(input: input, options: settings, directory: directory, progress: { progress in
                             Task { @MainActor in
                                 if self.operationID == id && self.activeID == image.id && image.state == .processing && !self.cancellationRequested { self.tileProgress = progress }
                             }
@@ -275,6 +286,8 @@ final class Workspace {
             }
             for image in queue where image.state == .waiting { image.state = .ready }
             if operationID == id {
+                workflow?.completeBatch(id: id, count: queue.count, succeeded: succeeded, failed: failed,
+                                        cancelled: cancellationRequested || Task.isCancelled || pendingRestart != nil || isShuttingDown)
                 if cancellationRequested { notice = queue.count == 1 ? L("已取消处理") : L("已停止批量处理 · 保留已完成的 %d 张结果", succeeded) }
                 else if queue.count > 1 { notice = failed > 0 ? L("批量完成 · %d 张成功，%d 张失败，请在图片列表查看", succeeded, failed) : L("批量完成 · %d 张成功", succeeded) }
                 isProcessing = false; tileProgress = nil; activeID = nil; activeOptions = nil; task = nil
@@ -282,15 +295,24 @@ final class Workspace {
                     pendingRestart = nil
                     beginProcessing(images.filter { request.imageIDs.contains($0.id) }, settings: request.settings)
                 }
+                if isShuttingDown { try? FileManager.default.removeItem(at: directory) }
             }
         }
     }
 
     func shutdown() {
+        isShuttingDown = true
+        workflow?.shutdown()
         pendingRestart = nil
         dismissRestartConfirmation()
         cancellationRequested = true
         engine?.cancel(); task?.cancel()
+        if !isProcessing { try? FileManager.default.removeItem(at: directory) }
+    }
+    func prepareForTermination() async {
+        let runningTask = task
+        shutdown()
+        await runningTask?.value
         try? FileManager.default.removeItem(at: directory)
     }
     func cancel() {

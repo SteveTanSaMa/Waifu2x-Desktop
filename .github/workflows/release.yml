@@ -48,8 +48,28 @@ jobs:
       - name: Run unit tests
         run: bash script/test.sh --unit
 
-      - name: Test model archive tooling
-        run: python3 -m unittest discover -s script -p test_fetch_test_models.py
+      - name: Test model and incremental update packaging
+        run: python3 -m unittest discover -s script -p 'test_*.py'
+
+      - name: Fetch the previous app for an incremental package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p build/update-base
+          # A first release or unavailable base still produces a complete verified update.
+          if command -v gh >/dev/null && gh release view --json tagName,assets > build/update-base/release.json; then
+            BASE_TAG="$(jq -r '.tagName' build/update-base/release.json)"
+            BASE_NAME="$(jq -r '[.assets[].name | select(test("^Waifu2x-[0-9]+\\.[0-9]+\\.[0-9]+-macos-arm64\\.zip$"))][0] // empty' build/update-base/release.json)"
+            if [[ "$BASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && -n "$BASE_NAME" ]] &&
+               gh release download "$BASE_TAG" --pattern "$BASE_NAME" --dir build/update-base; then
+              printf 'APP_UPDATE_BASE_ZIP=%s/build/update-base/%s\n' "$PWD" "$BASE_NAME" >> "$GITHUB_ENV"
+            else
+              echo 'No compatible previous app package; using a complete update catalog'
+            fi
+          else
+            echo 'Previous release is unavailable; using a complete update catalog'
+          fi
 
       - name: Build and package Apple Silicon app
         id: package
@@ -62,6 +82,8 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+            dist/Waifu2x-update.json
+            dist/*.delta.tar.xz
             dist/SHA256SUMS
           if-no-files-found: error
           compression-level: 0
@@ -87,7 +109,7 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
        startsWith(github.event.head_commit.message, 'release: v'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     permissions:
       contents: write
       actions: read
@@ -135,7 +157,36 @@ jobs:
           test "$(wc -c < "dist/$MODEL_ARCHIVE_NAME" | tr -d '[:space:]')" = "$MODEL_ARCHIVE_BYTES"
           printf '%s  %s\n' "$MODEL_ARCHIVE_SHA256" "$MODEL_ARCHIVE_NAME" >> dist/SHA256SUMS
           cd dist
-          sha256sum --check SHA256SUMS
+          sha256sum --check SHA256SUMS > /dev/null
+
+      - name: Build content-addressed model repair assets
+        run: |
+          MODEL_ARCHIVE_NAME="$(jq -r '.archive.path' Waifu2x/Resources/ModelCatalog.json)"
+          MODEL_VERSION="$(jq -r '.catalogVersion' Waifu2x/Resources/ModelCatalog.json)"
+          MODEL_ROOT="$PWD/build/TestModels/$MODEL_VERSION"
+          # Extraction checks all raw model hashes before any repair asset is built.
+          python3 script/fetch_test_models.py --archive "dist/$MODEL_ARCHIVE_NAME" --root "$MODEL_ROOT"
+          python3 script/package_models.py --root "$MODEL_ROOT" --release "$RELEASE_TAG" --repair-only
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path('dist')
+          catalog = json.loads(Path('Waifu2x/Resources/ModelCatalog.json').read_text())
+          name = 'Waifu2x-' + catalog['catalogVersion'] + '-repair.json'
+          repair = json.loads((root / name).read_text())
+          names = {name} | {item['archive']['path'] for item in repair['files']}
+          with (root / 'SHA256SUMS').open('a') as output:
+              for name in sorted(names):
+                  digest = hashlib.sha256()
+                  with (root / name).open('rb') as source:
+                      for chunk in iter(lambda: source.read(4 * 1024 * 1024), b''):
+                          digest.update(chunk)
+                  output.write(digest.hexdigest() + '  ' + name + '\n')
+          print(f'Prepared {len(names) - 1} model repair archives and their index')
+          PY
+          (cd dist && sha256sum --check SHA256SUMS > /dev/null)
 
       - name: Upload app packages and publish
         run: |
@@ -145,5 +196,11 @@ jobs:
           gh release edit "$RELEASE_TAG" --title "Waifu2x Desktop $RELEASE_VERSION"
           # The verified model archive is already on the draft; never replace it here.
           gh release upload "$RELEASE_TAG" dist/*.dmg dist/*.zip dist/SHA256SUMS --clobber
+          gh release upload "$RELEASE_TAG" dist/Waifu2x-update.json dist/Waifu2x-models-*-repair.json dist/Waifu2x-model-*.tar.xz --clobber
+          shopt -s nullglob
+          DELTAS=(dist/*.delta.tar.xz)
+          if [[ ${#DELTAS[@]} -gt 0 ]]; then
+            gh release upload "$RELEASE_TAG" "${DELTAS[@]}" --clobber
+          fi
           gh release edit "$RELEASE_TAG" --draft=false --latest
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

@@ -21,20 +21,16 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, help="Verified model cache root")
-    parser.add_argument("--release", default="v1.0.1", help="GitHub Release tag hosting the archive")
-    parser.add_argument("--update-catalog", action="store_true", help="Record archive metadata in the catalog")
-    args = parser.parse_args()
-    if not re.fullmatch(r"v\d+\.\d+\.\d+", args.release):
-        parser.error("--release must be a stable version tag")
-    catalog = json.loads(CATALOG.read_text())
-    version = catalog["catalogVersion"]
-    if not re.fullmatch(r"models-v\d+", version):
-        raise ValueError("Invalid model cache version")
-    root = args.root or PROJECT / "build/TestModels" / version
-    files = catalog["files"]
+def archive_metadata(path, release):
+    return {
+        "path": path.name,
+        "bytes": path.stat().st_size,
+        "sha256": sha256(path),
+        "sourceURL": f"https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/{release}/{path.name}",
+    }
+
+
+def verify_sources(root, files):
     for item in files:
         relative = item["path"]
         if (relative.startswith("/") or "\\" in relative or ":" in relative
@@ -45,8 +41,72 @@ def main():
             raise ValueError("Missing or invalid source model: " + str(path))
         if not path.resolve().is_relative_to(root.resolve()):
             raise ValueError("Source model escapes the cache: " + str(path))
-    destination = PROJECT / "dist" / ("Waifu2x-" + version + ".tar.xz")
-    destination.parent.mkdir(exist_ok=True)
+
+
+def package_repairs(root, files, version, release, output_dir):
+    """One compressed payload per content hash; initial installs keep one archive."""
+    verify_sources(root, files)
+    if not re.fullmatch(r"models-v\d+", version) or not re.fullmatch(r"v\d+\.\d+\.\d+", release):
+        raise ValueError("Invalid model version or release tag")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    assets = {}
+    entries = []
+    for item in sorted(files, key=lambda item: item["path"]):
+        digest = item["sha256"]
+        if not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise ValueError("Invalid model checksum")
+        if digest not in assets:
+            destination = output_dir / f"Waifu2x-model-{digest}.tar.xz"
+            partial = destination.with_suffix(destination.suffix + ".partial")
+            try:
+                with tarfile.open(partial, mode="w:xz", format=tarfile.USTAR_FORMAT, preset=6) as archive:
+                    member = tarfile.TarInfo("model")
+                    member.size, member.mode = item["bytes"], 0o644
+                    member.uid = member.gid = member.mtime = 0
+                    with (root / item["path"]).open("rb") as source:
+                        archive.addfile(member, source)
+                os.replace(partial, destination)
+            finally:
+                partial.unlink(missing_ok=True)
+            assets[digest] = archive_metadata(destination, release)
+        entries.append({key: item[key] for key in ("path", "bytes", "sha256")} | {"archive": assets[digest]})
+    result = dict(schemaVersion=1, catalogVersion=version, files=entries)
+    destination = output_dir / f"Waifu2x-{version}-repair.json"
+    partial = destination.with_suffix(".json.partial")
+    try:
+        partial.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+        os.replace(partial, destination)
+    finally:
+        partial.unlink(missing_ok=True)
+    print(f"Model repair index: {len(files)} paths, {len(assets)} unique compressed payloads", flush=True)
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, help="Verified model cache root")
+    parser.add_argument("--release", default="v1.0.2", help="GitHub Release tag hosting the archive")
+    parser.add_argument("--update-catalog", action="store_true", help="Record archive metadata in the catalog")
+    parser.add_argument("--repair-only", action="store_true", help="Generate repair assets without repacking the full archive")
+    parser.add_argument("--output-dir", type=Path, default=PROJECT / "dist")
+    args = parser.parse_args()
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", args.release):
+        parser.error("--release must be a stable version tag")
+    catalog = json.loads(CATALOG.read_text())
+    version = catalog["catalogVersion"]
+    if not re.fullmatch(r"models-v\d+", version):
+        raise ValueError("Invalid model cache version")
+    root = args.root or PROJECT / "build/TestModels" / version
+    files = catalog["files"]
+    verify_sources(root, files)
+    package_repairs(root, files, version, args.release, args.output_dir)
+    catalog["repairManifestURL"] = f"https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest/download/Waifu2x-{version}-repair.json"
+    if args.repair_only:
+        if args.update_catalog:
+            CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n")
+        return
+    destination = args.output_dir / ("Waifu2x-" + version + ".tar.xz")
+    destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".partial")
     print(f"Packing {len(files)} verified files ({sum(i['bytes'] for i in files):,} bytes)", flush=True)
     try:
@@ -61,15 +121,10 @@ def main():
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
-    metadata = {
-        "path": destination.name,
-        "bytes": destination.stat().st_size,
-        "sha256": sha256(destination),
-        "sourceURL": f"https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/{args.release}/{destination.name}",
-    }
+    metadata = archive_metadata(destination, args.release)
     if args.update_catalog:
         catalog["schemaVersion"] = 3
-        catalog = {"schemaVersion": 3, "catalogVersion": version, "archive": metadata, "files": files}
+        catalog["archive"] = metadata
         CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(metadata, indent=2), flush=True)
 

@@ -1,7 +1,28 @@
+import Observation
 import XCTest
 @testable import Waifu2x
 
 final class LocalizationTests: XCTestCase {
+    func testGlobalLocalizationChangesImmediatelyAndInvalidatesExistingReaders() {
+        let preferences = AppPreferences.shared
+        let previousLanguage = preferences.languageCode
+        defer { preferences.languageCode = previousLanguage }
+        preferences.languageCode = "en"
+        XCTAssertEqual(AppLocalization.current.language, "en")
+        XCTAssertEqual(L("图像增强"), "Image enhancement")
+
+        let changed = expectation(description: "Existing localization reader invalidated")
+        withObservationTracking {
+            _ = L("图像增强")
+        } onChange: {
+            changed.fulfill()
+        }
+        preferences.languageCode = "zh-Hans"
+        XCTAssertEqual(AppLocalization.current.language, "zh-Hans")
+        XCTAssertEqual(L("图像增强"), "图像增强")
+        wait(for: [changed], timeout: 1)
+    }
+
     func testSystemPreferenceOrderAndEnglishFallback() {
         let cases: [([String], String)] = [
             ([], "en"), (["es-MX", "de-DE"], "en"),

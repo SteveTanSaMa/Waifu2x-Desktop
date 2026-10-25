@@ -7,6 +7,7 @@ struct CanvasControlOverlay: NSViewRepresentable {
     let workspace: Workspace
     let presentation: CanvasPresentation
     let processing: Bool
+    @Environment(\.isEnabled) private var isEnabled
     func makeNSView(context: Context) -> CanvasControlsHostView {
         let view = CanvasControlsHostView(workspace: workspace)
         presentation.controls = view
@@ -15,7 +16,8 @@ struct CanvasControlOverlay: NSViewRepresentable {
     }
     func updateNSView(_ view: CanvasControlsHostView, context: Context) {
         view.processing = processing
-        view.host.rootView = CanvasControls(workspace: workspace)
+        // The nested hosting view has its own environment, so forward disabling.
+        view.host.rootView = CanvasControls(workspace: workspace, isEnabled: isEnabled)
         presentation.updateControls()
         view.needsLayout = true
     }
@@ -23,6 +25,7 @@ struct CanvasControlOverlay: NSViewRepresentable {
 
 struct CanvasControls: View {
     @Bindable var workspace: Workspace
+    var isEnabled = true
     var body: some View {
         HStack(spacing: 8) {
             Group {
@@ -59,6 +62,7 @@ struct CanvasControls: View {
         .background(.regularMaterial, in: .rect(cornerRadius: 18))
         .background(HeaderGeometryReader(identifier: "canvasControlsBounds"))
         .padding(.horizontal, 16).padding(.bottom, CanvasControlLayout.bottomPadding)
+        .disabled(!isEnabled)
     }
 }
 

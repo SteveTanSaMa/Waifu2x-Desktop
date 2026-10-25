@@ -24,6 +24,27 @@ struct ModelStore: Sendable {
         return valid
     }
 
+    /// Some catalog paths intentionally share identical weights. Reuse an
+    /// already-verified local payload before considering any network repair.
+    func reuseVerifiedPayloads(_ verified: Set<String>) throws -> Set<String> {
+        var valid = verified
+        for file in catalog.files where !valid.contains(file.path) {
+            try Task.checkCancellation()
+            guard let source = catalog.files.first(where: {
+                valid.contains($0.path) && $0.sha256 == file.sha256 && $0.bytes == file.bytes
+            }) else { continue }
+            do {
+                try install(file, from: paths.root.appendingPathComponent(source.path))
+                valid.insert(file.path)
+            } catch {
+                // A formerly verified source may have changed outside the app.
+                // Cancellation still stops preparation; other failures use repair.
+                try Task.checkCancellation()
+            }
+        }
+        return valid
+    }
+
     func install(_ file: ModelCatalog.File, from downloaded: URL) throws {
         try Task.checkCancellation()
         guard catalog.files.contains(file), try Self.isRegularFile(downloaded, bytes: file.bytes),
@@ -44,8 +65,32 @@ struct ModelStore: Sendable {
     }
 
     func archiveMatches(_ url: URL) throws -> Bool {
-        guard let archive = catalog.archive, try Self.isRegularFile(url, bytes: archive.bytes) else { return false }
-        return try Self.sha256(of: url) == archive.sha256
+        guard let archive = catalog.archive else { return false }
+        return try downloadedFileMatches(archive, at: url)
+    }
+
+    func downloadedFileMatches(_ file: ModelCatalog.File, at url: URL) throws -> Bool {
+        guard try Self.isRegularFile(url, bytes: file.bytes) else { return false }
+        return try Self.sha256(of: url) == file.sha256
+    }
+
+    /// One content-addressed payload can repair several identical model paths.
+    /// Verified neighbouring files are never rewritten during an incremental repair.
+    func installRepair(_ archive: ModelCatalog.File, files: [ModelCatalog.File], from downloaded: URL) throws {
+        guard let first = files.first, files.allSatisfy({
+            catalog.files.contains($0) && $0.sha256 == first.sha256 && $0.bytes == first.bytes
+        }), try downloadedFileMatches(archive, at: downloaded) else {
+            throw ModelDownloadFailure.message(L("模型压缩包校验失败，请重试"))
+        }
+        let manager = FileManager.default
+        let staging = manager.temporaryDirectory.appendingPathComponent("Waifu2x-model-repair-\(UUID().uuidString)", isDirectory: true)
+        try manager.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? manager.removeItem(at: staging) }
+        let payload = ModelCatalog.File(path: "model", bytes: first.bytes, sha256: first.sha256, sourceURL: archive.sourceURL)
+        let payloadCatalog = ModelCatalog(schemaVersion: 2, catalogVersion: catalog.catalogVersion, files: [payload])
+        try ModelArchiveExtractor.extract(downloaded, to: staging, catalog: payloadCatalog) { _, _ in }
+        let source = staging.appendingPathComponent("model")
+        for file in files { try install(file, from: source) }
     }
 
     func installArchive(from downloaded: URL, progress: @Sendable (Int, String) -> Void = { _, _ in }) throws {

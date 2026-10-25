@@ -5,7 +5,7 @@
     "path": "Waifu2x-models-v1.tar.xz",
     "bytes": 839373332,
     "sha256": "399a08474a8c6f0f191f863f60b24def10c6b96eb4c9610eadf5a2b351d68253",
-    "sourceURL": "https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.1/Waifu2x-models-v1.tar.xz"
+    "sourceURL": "https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.2/Waifu2x-models-v1.tar.xz"
   },
   "files": [
     {
@@ -602,5 +602,6 @@
       "sha256": "413195ffde05b4d43807792c6c020c916cecdf25dcf002ee83f5e28d5cc246c6",
       "sourceURL": "https://raw.githubusercontent.com/nihui/waifu2x-ncnn-vulkan/a86cfb043e6482b5f08778a114df9b5faf6e73b7/models/models-upconv_7_photo/scale2.0x_model.param"
     }
-  ]
+  ],
+  "repairManifestURL": "https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest/download/Waifu2x-models-v1-repair.json"
 }

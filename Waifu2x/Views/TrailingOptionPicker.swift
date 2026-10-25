@@ -7,6 +7,7 @@ struct TrailingOptionPicker<Value: Hashable>: NSViewRepresentable {
     let title: String
     @Binding var selection: Value
     let choices: [(value: Value, title: String)]
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSPopUpButton {
@@ -23,6 +24,7 @@ struct TrailingOptionPicker<Value: Hashable>: NSViewRepresentable {
     }
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         context.coordinator.parent = self
+        button.isEnabled = isEnabled
         let titles = choices.map(\.title)
         if button.itemTitles != titles {
             button.removeAllItems()
@@ -44,7 +46,7 @@ struct TrailingOptionPicker<Value: Hashable>: NSViewRepresentable {
         init(_ parent: TrailingOptionPicker) { self.parent = parent }
         @objc func changed(_ button: NSPopUpButton) {
             let index = button.indexOfSelectedItem
-            guard parent.choices.indices.contains(index) else { return }
+            guard button.isEnabled, parent.choices.indices.contains(index) else { return }
             parent.selection = parent.choices[index].value
         }
     }

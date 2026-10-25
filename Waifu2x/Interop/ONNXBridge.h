@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 NS_ASSUME_NONNULL_BEGIN
+FOUNDATION_EXPORT NSString *W2XRuntimeVersion(void);
 @interface W2XTensor : NSObject
 @property(nonatomic, readonly) NSData *data;
 @property(nonatomic, readonly) NSArray<NSNumber *> *shape;

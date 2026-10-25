@@ -11,10 +11,12 @@ final class ModelDownloadManager {
     private(set) var totalFiles = 0
     private(set) var currentName = ""
     private(set) var errorMessage: String?
+    private(set) var isIncrementalRepair = false
     private let catalog: ModelCatalog?
     private let catalogError: String?
     private let paths: ModelPaths
     private let transportFactory: ModelDownloadTransportFactory
+    private let repairManifestLoader: ModelRepairManifestLoader
     // canStart depends on these tasks finishing; their mutations must invalidate the paused UI.
     private var work: Task<Void, Never>?
     @ObservationIgnored private var transfer: (any ModelFileTransferring)?
@@ -31,9 +33,11 @@ final class ModelDownloadManager {
     }
 
     init(catalog: ModelCatalog? = nil, paths: ModelPaths = .current,
-         transportFactory: ModelDownloadTransportFactory? = nil) {
+         transportFactory: ModelDownloadTransportFactory? = nil,
+         repairManifestLoader: ModelRepairManifestLoader? = nil) {
         self.paths = paths
         self.transportFactory = transportFactory ?? { ModelFileDownload(destination: $0, expectedBytes: $1) }
+        self.repairManifestLoader = repairManifestLoader ?? { try await ModelRepairManifest.load(from: $0) }
         do {
             let loaded = try catalog ?? ModelCatalog.load()
             try loaded.validate()
@@ -61,7 +65,7 @@ final class ModelDownloadManager {
                     throw ModelDownloadFailure.message(catalogError ?? L("模型清单无效，请重新安装完整应用"))
                 }
                 let store = ModelStore(catalog: catalog, paths: paths)
-                let verified = try await Self.background {
+                let initial = try await Self.background {
                     try store.validatedFiles { [weak self] count, _, name in
                         Task { @MainActor in
                             guard let self, self.operation == id, self.status == .checking else { return }
@@ -70,6 +74,8 @@ final class ModelDownloadManager {
                         }
                     }
                 }
+                try check(id)
+                let verified = try await Self.background { try store.reuseVerifiedPayloads(initial) }
                 try check(id)
                 completedFiles = verified.count
                 if verified.count == catalog.files.count {
@@ -81,42 +87,50 @@ final class ModelDownloadManager {
                 guard let archive = catalog.archive else {
                     throw ModelDownloadFailure.message(L("模型清单无效，请重新安装完整应用"))
                 }
-                currentFile = archive
-                let pending = store.pendingURL(for: archive)
-                let resume = readResume(for: archive, store: store)
-                // A verified archive survives termination during extraction, avoiding another download.
-                let cachedArchive = try await Self.background { try store.archiveMatches(pending) }
-                try check(id)
-                if !cachedArchive {
-                    setBytes(completed: 0, current: resume?.downloadedBytes ?? 0)
-                    try? FileManager.default.removeItem(at: pending)
-                    let transfer = transportFactory(pending, archive.bytes)
-                    self.transfer = transfer
-                    status = .downloading; currentName = archive.path
-                    _ = try await transfer.download(from: archive.sourceURL, resumeData: resume?.data) { [weak self] bytes, _ in
-                        Task { @MainActor in
-                            guard let self, self.operation == id, self.status == .downloading else { return }
-                            self.setBytes(completed: 0, current: min(archive.bytes, max(0, bytes)))
-                        }
-                    }
-                    try check(id)
-                    self.transfer = nil
-                }
-                setBytes(completed: 0, current: archive.bytes)
-                status = .verifying; currentName = L("正在解压模型包")
-                removeResume(store)
-                try await Self.background {
-                    try store.installArchive(from: pending) { [weak self] count, name in
-                        Task { @MainActor in
-                            guard let self, self.operation == id, self.status == .verifying else { return }
-                            self.completedFiles = max(verified.count, count)
-                            self.currentName = L("正在解压模型包") + "\n" + name
-                        }
-                    }
+                // A complete archive from an interrupted extraction is reusable
+                // without fetching either repair metadata or model bytes again.
+                let cachedArchive = try await Self.background {
+                    try store.archiveMatches(store.pendingURL(for: archive))
                 }
                 try check(id)
-                try? FileManager.default.removeItem(at: pending)
-                currentFile = nil
+                if !verified.isEmpty, !cachedArchive, let url = catalog.repairManifestURL {
+                    isIncrementalRepair = true
+                    status = .verifying
+                    currentName = L("正在检查增量修复包")
+                    do {
+                        let data = try await repairManifestLoader(url)
+                        try check(id)
+                        let repairs = try ModelRepairManifest.decode(data, catalog: catalog, verified: verified)
+                        let bytes = repairs.reduce(Int64(0)) { $0 + $1.archive.bytes }
+                        if !repairs.isEmpty, bytes < archive.bytes {
+                            let resumedBytes = repairs.first.flatMap {
+                                self.readResume(for: $0.archive, store: store)?.downloadedBytes
+                            } ?? 0
+                            totalBytes = bytes
+                            // After earlier repairs have finished, the new plan
+                            // contains only remaining payloads. Publish its byte
+                            // snapshot together before cached-file checks yield.
+                            setBytes(completed: 0, current: resumedBytes)
+                            try await prepareRepairs(repairs, store: store, verified: verified, id: id)
+                            markReady()
+                            return
+                        }
+                    } catch {
+                        // Pausing and cancellation never turn into an unexpected
+                        // full download. Only an unavailable/invalid repair may fall back.
+                        try check(id)
+                        transfer = nil
+                        removeResume(store)
+                        if let file = currentFile {
+                            try? FileManager.default.removeItem(at: store.pendingURL(for: file))
+                        }
+                        currentFile = nil
+                    }
+                }
+                isIncrementalRepair = false
+                totalBytes = archive.bytes
+                try await prepareFullArchive(archive, store: store, verified: verified,
+                                             cached: cachedArchive, id: id)
                 markReady()
             } catch {
                 guard operation == id, status != .paused, !Task.isCancelled else { return }
@@ -136,6 +150,86 @@ final class ModelDownloadManager {
                 currentName = L("模型准备未完成")
             }
         }
+    }
+
+    private func prepareFullArchive(_ archive: ModelCatalog.File, store: ModelStore,
+                                    verified: Set<String>, cached: Bool, id: UUID) async throws {
+        currentFile = archive
+        try await download(archive, store: store, completed: 0, cached: cached, id: id,
+                           name: archive.path)
+        status = .verifying; currentName = L("正在解压模型包")
+        try await Self.background {
+            try store.installArchive(from: store.pendingURL(for: archive)) { [weak self] count, name in
+                Task { @MainActor in
+                    guard let self, self.operation == id, self.status == .verifying else { return }
+                    self.completedFiles = max(verified.count, count)
+                    self.currentName = L("正在解压模型包") + "\n" + name
+                }
+            }
+        }
+        try check(id)
+        try? FileManager.default.removeItem(at: store.pendingURL(for: archive))
+        currentFile = nil
+    }
+
+    private func prepareRepairs(_ repairs: [ModelRepairManifest.Repair], store: ModelStore,
+                                verified: Set<String>, id: UUID) async throws {
+        var completed: Int64 = 0
+        var installed = verified.count
+        for repair in repairs {
+            try check(id)
+            currentFile = repair.archive
+            let cached = try await Self.background {
+                try store.downloadedFileMatches(repair.archive, at: store.pendingURL(for: repair.archive))
+            }
+            try check(id)
+            try await download(repair.archive, store: store, completed: completed, cached: cached, id: id,
+                               name: L("正在补全缺失的模型") + "\n" + (repair.files.first?.path ?? ""))
+            status = .verifying; currentName = L("正在补全缺失的模型")
+            try await Self.background {
+                try store.installRepair(repair.archive, files: repair.files, from: store.pendingURL(for: repair.archive))
+            }
+            try check(id)
+            installed += repair.files.count
+            completedFiles = installed
+            completed += repair.archive.bytes
+            setBytes(completed: completed, current: 0)
+            try? FileManager.default.removeItem(at: store.pendingURL(for: repair.archive))
+            currentFile = nil
+        }
+        // Neighbouring cached files could have changed since the initial scan.
+        // Never unlock the workspace until the complete catalog is valid again.
+        status = .verifying; currentName = L("正在检查已下载的模型")
+        let all = try await Self.background { try store.validatedFiles() }
+        try check(id)
+        guard all.count == store.catalog.files.count else {
+            throw ModelDownloadFailure.message(L("模型准备未完成"))
+        }
+        removeResume(store)
+    }
+
+    private func download(_ file: ModelCatalog.File, store: ModelStore, completed: Int64,
+                          cached: Bool, id: UUID, name: String) async throws {
+        let pending = store.pendingURL(for: file)
+        if !cached {
+            let resume = readResume(for: file, store: store)
+            setBytes(completed: completed, current: resume?.downloadedBytes ?? 0)
+            try? FileManager.default.removeItem(at: pending)
+            let active = transportFactory(pending, file.bytes)
+            transfer = active
+            status = .downloading; currentName = name
+            _ = try await active.download(from: file.sourceURL, resumeData: resume?.data) { [weak self] bytes, _ in
+                Task { @MainActor in
+                    guard let self, self.operation == id, self.status == .downloading,
+                          self.currentFile == file else { return }
+                    self.setBytes(completed: completed, current: min(file.bytes, max(0, bytes)))
+                }
+            }
+            try check(id)
+            transfer = nil
+        }
+        setBytes(completed: completed, current: file.bytes)
+        removeResume(store)
     }
 
     func togglePause() {

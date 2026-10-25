@@ -5,36 +5,49 @@ import Observation
 /// strict order. Every model must pass verification before the app is unlocked.
 @MainActor @Observable
 final class AppStartupState {
-    enum Phase { case splash, models, ready }
+    enum Phase { case splash, models, completed, revealing, ready }
 
     private(set) var phase: Phase = .splash
     private(set) var splashProgress = 0.0
+    /// The install surface is only needed when preparation actually requires
+    /// a download, extraction, or user attention. Routine cache verification
+    /// stays behind the splash, including its outgoing transition.
+    private(set) var showsModelPreparation = false
+    private(set) var usesReducedMotion = false
+    private(set) var revealDuration: TimeInterval
     let models: ModelDownloadManager
     @ObservationIgnored private var launchTask: Task<Void, Never>?
+    @ObservationIgnored private var revealTask: Task<Void, Never>?
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var isCancelled = false
     @ObservationIgnored private var onReady: (() -> Void)?
     private let splashDuration: TimeInterval
+    private let completionHoldDuration: TimeInterval
 
     var isReady: Bool { phase == .ready }
 
-    init(models: ModelDownloadManager? = nil, splashDuration: TimeInterval = 2.2) {
+    init(models: ModelDownloadManager? = nil, splashDuration: TimeInterval = 2.2,
+         completionHoldDuration: TimeInterval = 0.35, revealDuration: TimeInterval = 0.65) {
         self.models = models ?? ModelDownloadManager()
         self.splashDuration = max(0, splashDuration)
+        self.completionHoldDuration = max(0, completionHoldDuration)
+        self.revealDuration = max(0, revealDuration)
     }
 
-    deinit { launchTask?.cancel() }
+    deinit { launchTask?.cancel(); revealTask?.cancel() }
 
     func begin(isTesting: Bool = false, reduceMotion: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
                onReady: @escaping () -> Void) {
         guard !hasStarted, !isCancelled else { return }
         hasStarted = true
         self.onReady = onReady
+        usesReducedMotion = reduceMotion
+        if reduceMotion { revealDuration = min(revealDuration, 0.18) }
         // Unit tests use explicitly injected model fixtures and never initiate
         // a network download simply by mounting the application scene.
         if isTesting {
             splashProgress = 1
-            complete()
+            complete(immediately: true)
             return
         }
         let duration = reduceMotion ? min(splashDuration, 0.7) : splashDuration
@@ -49,7 +62,6 @@ final class AppStartupState {
                 catch { return }
             }
             guard let self, !Task.isCancelled else { return }
-            phase = .models
             observeModelStatus()
             models.start()
         }
@@ -59,30 +71,66 @@ final class AppStartupState {
     /// Observation notifications arrive before the mutation, so re-read and
     /// re-arm on the main actor after the manager has published its new state.
     private func observeModelStatus() {
-        guard hasStarted, !isCancelled, phase == .models else { return }
+        guard hasStarted, !isCancelled, phase == .splash || phase == .models else { return }
         let status = withObservationTracking {
             models.status
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in self?.observeModelStatus() }
         }
-        if status == .ready { complete() }
+        switch status {
+        case .checking:
+            break
+        case .downloading, .verifying, .paused, .failed:
+            showsModelPreparation = true
+            phase = .models
+        case .ready:
+            complete()
+        }
     }
 
     func cancel() {
         isCancelled = true
         onReady = nil
         launchTask?.cancel()
+        revealTask?.cancel()
         models.cancel()
     }
 
-    private func complete() {
-        guard !isCancelled, phase != .ready else { return }
+    private func complete(immediately: Bool = false) {
+        guard !isCancelled, phase == .models || phase == .splash else { return }
         let ready = onReady
         onReady = nil
         // Resolve first-run eligibility before the workspace is unblocked so
         // there is no intermediate frame with an interactive canvas.
         ready?()
-        phase = .ready
+        guard !isCancelled else { return }
+        if immediately {
+            phase = .ready
+            return
+        }
+        // Retain the existing splash or finished install landscape for the
+        // handoff. The owner keeps the workspace locked throughout it.
+        phase = .completed
+        // A normal launch with installed models only needs a brief handoff.
+        if !showsModelPreparation { revealDuration = min(revealDuration, 0.35) }
+        let holdsBriefly = usesReducedMotion || !showsModelPreparation
+        let holdDuration = holdsBriefly ? min(completionHoldDuration, 0.12) : completionHoldDuration
+        let duration = revealDuration
+        revealTask = Task { [weak self] in
+            if holdDuration > 0 {
+                do { try await Task.sleep(for: .seconds(holdDuration)) }
+                catch { return }
+            }
+            guard let self, !Task.isCancelled, !isCancelled else { return }
+            phase = .revealing
+            if duration > 0 {
+                do { try await Task.sleep(for: .seconds(duration)) }
+                catch { return }
+            }
+            guard !Task.isCancelled, !isCancelled else { return }
+            phase = .ready
+            revealTask = nil
+        }
     }
 
     var downloadPresentation: ModelDownloadPresentation {
@@ -102,6 +150,7 @@ final class AppStartupState {
                                          currentName: models.currentName,
                                          status: status,
                                          errorMessage: models.errorMessage,
-                                         canStart: models.canStart)
+                                         canStart: models.canStart,
+                                         isIncrementalRepair: models.isIncrementalRepair)
     }
 }

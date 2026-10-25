@@ -6,8 +6,10 @@ struct ImageCanvas: NSViewRepresentable {
     let workspace: Workspace
     var presentation: CanvasPresentation? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
     func makeNSView(context: Context) -> CanvasView { CanvasView() }
     func updateNSView(_ view: CanvasView, context: Context) {
+        view.isInteractionEnabled = isEnabled
         presentation?.connect(view)
         view.original = workspace.input?.image
         view.enhanced = workspace.isSelectedProcessing ? nil : workspace.result?.asset.image
@@ -38,6 +40,19 @@ struct ImageCanvas: NSViewRepresentable {
 }
 
 final class CanvasView: NSView {
+    // Covered canvases retain their drawing state while native input is suspended.
+    var isInteractionEnabled = true {
+        didSet {
+            guard oldValue != isInteractionEnabled else { return }
+            setAccessibilityEnabled(isInteractionEnabled)
+            if !isInteractionEnabled {
+                draggingSplit = false
+                if pushedPanCursor { NSCursor.pop(); pushedPanCursor = false }
+                if window?.firstResponder === self { window?.makeFirstResponder(nil) }
+            }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var original: CGImage?
     var enhanced: CGImage?
     var partial: TileProgress?
@@ -83,7 +98,7 @@ final class CanvasView: NSView {
     private var draggingSplit = false
     private var pushedPanCursor = false
     override var isFlipped: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool { isInteractionEnabled }
     override var mouseDownCanMoveWindow: Bool { false }
     var base: CGImage? {
         if let partial { return partial.preview ?? original }
@@ -223,6 +238,7 @@ final class CanvasView: NSView {
         setAccessibilityMaxValue(comparing ? NSNumber(value: 98) : nil)
     }
     override func setAccessibilityValue(_ value: Any?) {
+        guard isInteractionEnabled else { return }
         if mode == .compare, enhanced != nil, partial == nil, let number = value as? NSNumber {
             let next = min(0.98, max(0.02, number.doubleValue / 100))
             if abs(next - split) > 0.0001 { split = next; onSplit?(next); needsDisplay = true }
@@ -233,7 +249,7 @@ final class CanvasView: NSView {
     override func accessibilityPerformDecrement() -> Bool { adjustComparison(by: -0.05) }
     @discardableResult
     private func adjustComparison(by amount: Double) -> Bool {
-        guard mode == .compare, enhanced != nil, partial == nil else { return false }
+        guard isInteractionEnabled, mode == .compare, enhanced != nil, partial == nil else { return false }
         split = min(0.98, max(0.02, split + amount))
         onSplit?(split)
         updateAccessibility()
@@ -241,11 +257,13 @@ final class CanvasView: NSView {
         return true
     }
     override func keyDown(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         if event.keyCode == 123 && adjustComparison(by: -0.02) { return }
         if event.keyCode == 124 && adjustComparison(by: 0.02) { return }
         super.keyDown(with: event)
     }
     override func resetCursorRects() {
+        guard isInteractionEnabled else { return }
         let canPan = panLimits.x.lowerBound < panLimits.x.upperBound || panLimits.y.lowerBound < panLimits.y.upperBound
         addCursorRect(bounds, cursor: canPan ? .openHand : .arrow)
         if mode == .compare && enhanced != nil {
@@ -254,6 +272,7 @@ final class CanvasView: NSView {
         }
     }
     override func mouseDown(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         window?.makeFirstResponder(self)
         if event.clickCount == 2 { pan = .zero; onReset?(); return }
         pushedPanCursor = false
@@ -262,6 +281,7 @@ final class CanvasView: NSView {
         if !draggingSplit { NSCursor.closedHand.push(); pushedPanCursor = true }
     }
     override func mouseDragged(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         let point = convert(event.locationInWindow, from: nil)
         if draggingSplit {
             split = min(0.98, max(0.02, (point.x - imageRect.minX) / imageRect.width)); onSplit?(split)
@@ -273,9 +293,11 @@ final class CanvasView: NSView {
     }
     override func mouseUp(with event: NSEvent) { if pushedPanCursor { NSCursor.pop(); pushedPanCursor = false }; window?.invalidateCursorRects(for: self) }
     override func magnify(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         zoom(to: zoom * (1 + event.magnification), at: convert(event.locationInWindow, from: nil))
     }
     override func scrollWheel(with event: NSEvent) {
+        guard isInteractionEnabled else { return }
         if event.modifierFlags.contains(.command) { zoom(to: zoom * (1 + event.scrollingDeltaY * 0.01), at: convert(event.locationInWindow, from: nil)) }
         else { pan.width += event.scrollingDeltaX; pan.height += event.scrollingDeltaY; clampPan(); needsDisplay = true }
     }
