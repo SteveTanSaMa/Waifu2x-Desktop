@@ -35,15 +35,25 @@ final class PlatformCompatibilityTests: XCTestCase {
         defer { fixture.remove() }
         let navigation = SettingsNavigation()
         navigation.selection = .models
+        // This test owns rendering and language changes, not desktop focus.
+        // CI's window server may activate another process between those steps;
+        // the production blur-close policy is covered by SettingsViewTests.
+        navigation.preventsFocusDismissal = { true }
         let root = LiveSettingsLanguageView(preferences: preferences, navigation: navigation, fixture: fixture)
         let (window, host) = makeWindow(root, size: CGSize(width: 720, height: 520))
         defer { window.close() }
 
+        try await wait("The translation fixture must finish mounting and storage refresh") {
+            window.isVisible && host.window === window && host.bounds.size == CGSize(width: 720, height: 520)
+                && !fixture.maintenance.isReadingStorage && fixture.maintenance.installedBytes != nil
+        }
         try await waitForText(["Models ready to use"], in: host, message: "The initial model status must use English")
         let modelImage = try paneDigest(in: host)
+        XCTAssertTrue(window.isVisible)
         preferences.languageCode = "ja"
         try await waitForText(["モデルを使用できます"], in: host, message: "The existing model pane must translate its actual status text")
         XCTAssertNotEqual(try paneDigest(in: host), modelImage)
+        XCTAssertTrue(window.isVisible)
         XCTAssertEqual(navigation.selection, .models)
         XCTAssertTrue(host.window === window)
         XCTAssertTrue(window.contentView === host)
@@ -64,6 +74,7 @@ final class PlatformCompatibilityTests: XCTestCase {
             (try? self.taglineDigest(in: host)) != aboutImage
         }
         XCTAssertNotEqual(try taglineDigest(in: host), aboutImage)
+        XCTAssertTrue(window.isVisible)
         XCTAssertEqual(navigation.selection, .about)
         XCTAssertTrue(host.window === window)
         XCTAssertTrue(window.contentView === host)
@@ -212,6 +223,7 @@ final class PlatformCompatibilityTests: XCTestCase {
             }
         } catch {
             print("Compatibility AX text for \(message): \(accessibleStrings(host).sorted())")
+            print("Compatibility host for \(message): bounds=\(host.bounds), windowVisible=\(host.window?.isVisible.description ?? "nil"), hidden=\(host.isHiddenOrHasHiddenAncestor)")
             if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
                 host.cacheDisplay(in: host.bounds, to: bitmap)
                 let image = NSImage(size: host.bounds.size)

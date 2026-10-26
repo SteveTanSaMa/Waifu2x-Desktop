@@ -69,7 +69,8 @@ jobs:
           printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n ' '--')" >> "$GITHUB_OUTPUT"
 
       - name: Restore the macOS 13 inference runtime
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: runtime-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: build/onnxruntime-macos13/Runtime
           key: ort13-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-toolchain.outputs.xcode }}-${{ steps.runtime-toolchain.outputs.sdk }}-py${{ steps.build-python.outputs.python-version }}-${{ hashFiles('script/build_onnxruntime_macos13.py', 'script/runtime-dependencies.json') }}
@@ -78,6 +79,13 @@ jobs:
         run: |
           mkdir -p build
           bash script/bootstrap.sh 2>&1 | tee build/runtime-build.log
+
+      - name: Save the verified macOS 13 inference runtime
+        if: steps.runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: build/onnxruntime-macos13/Runtime
+          key: ${{ steps.runtime-cache.outputs.cache-primary-key }}
 
       - name: Run unit tests
         run: bash script/test.sh --unit
