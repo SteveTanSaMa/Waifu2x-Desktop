@@ -72,18 +72,25 @@ final class PlatformCompatibilityTests: XCTestCase {
         navigation.selection = .about
         let japaneseVersion = AppLocalization(preferredLanguages: ["ja"]).string("版本 %@ · 构建 %@", arguments: [AppInformation.version, AppInformation.build])
         try await waitForText([japaneseVersion], in: host, message: "About must use the current language")
-        try await wait("The existing About tagline must finish layout") { self.probe("settingsAboutTagline", in: host) != nil }
-        let aboutImage = try taglineDigest(in: host)
+        XCTAssertEqual(L("版本 %@ · 构建 %@", AppInformation.version, AppInformation.build), japaneseVersion)
+        let japaneseVersionImage = try await stableGlyphDigest("settingsAboutVersion", in: host, window: window)
+        let japaneseTaglineImage = try await stableGlyphDigest("settingsAboutTagline", in: host, window: window)
         preferences.languageCode = "en"
         let englishVersion = AppLocalization(preferredLanguages: ["en"]).string("版本 %@ · 构建 %@", arguments: [AppInformation.version, AppInformation.build])
-        try await waitForText([englishVersion], in: host, message: "The mounted About pane must translate without a new window")
-        // Static SwiftUI Text in a ScrollView is not always materialized in the
-        // self-process AX tree. Inspect its rendered glyph region separately
-        // from the native, selectable version field used above.
-        try await wait("The existing About tagline glyphs must change language") {
-            (try? self.taglineDigest(in: host)) != aboutImage
-        }
-        XCTAssertNotEqual(try taglineDigest(in: host), aboutImage)
+        XCTAssertNotEqual(japaneseVersion, englishVersion)
+        XCTAssertEqual(preferences.languageCode, "en")
+        XCTAssertEqual(AppLocalization.current.language, "en")
+        XCTAssertEqual(L("版本 %@ · 构建 %@", AppInformation.version, AppInformation.build), englishVersion)
+        // The self-process AX tree can cache the previous selectable Text.
+        // Verify both independently rendered text regions in the mounted pane.
+        let englishVersionImage = try await stableGlyphDigest("settingsAboutVersion", in: host, window: window,
+                                                              differingFrom: japaneseVersionImage)
+        let englishTaglineImage = try await stableGlyphDigest("settingsAboutTagline", in: host, window: window,
+                                                              differingFrom: japaneseTaglineImage)
+        XCTAssertNotEqual(englishVersionImage, japaneseVersionImage,
+                          "The visible version line must translate independently of the tagline")
+        XCTAssertNotEqual(englishTaglineImage, japaneseTaglineImage,
+                          "The visible tagline must translate independently of the version line")
         XCTAssertTrue(window.isVisible)
         XCTAssertEqual(navigation.selection, .about)
         XCTAssertTrue(host.window === window)
@@ -181,18 +188,6 @@ final class PlatformCompatibilityTests: XCTestCase {
         // Exclude the native sidebar so a translated section title alone cannot
         // make an unchanged detail pane pass this check.
         let rect = CGRect(x: 185, y: 0, width: host.bounds.width - 185, height: host.bounds.height)
-        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: rect))
-        host.cacheDisplay(in: rect, to: bitmap)
-        let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-        return SHA256.hash(data: data)
-    }
-
-    private func taglineDigest(in host: NSView) throws -> SHA256.Digest {
-        host.layoutSubtreeIfNeeded()
-        let probe = try XCTUnwrap(probe("settingsAboutTagline", in: host))
-        let bounds = probe.convert(probe.bounds, to: host)
-        XCTAssertGreaterThan(bounds.height, 10)
-        let rect = CGRect(x: 185, y: bounds.minY - 2, width: host.bounds.width - 185, height: bounds.height + 4)
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: rect))
         host.cacheDisplay(in: rect, to: bitmap)
         let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))

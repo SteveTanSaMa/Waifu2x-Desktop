@@ -201,6 +201,7 @@ private struct AboutSettingsView: View {
                     Text(L("版本 %@ · 构建 %@", AppInformation.version, AppInformation.build))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         .textSelection(.enabled)
+                        .background(HeaderGeometryReader(identifier: "settingsAboutVersion"))
                 }
                 Divider().frame(maxWidth: 300)
                 VStack(spacing: 12) {
