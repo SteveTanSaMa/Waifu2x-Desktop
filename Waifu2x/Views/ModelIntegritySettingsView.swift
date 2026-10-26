@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ModelIntegritySettingsView: View {
     @Environment(\.locale) private var locale
+    @ObservedObject private var localizationPreferences = AppPreferences.shared
     @ObservedObject var checker: FileIntegrityChecker
     let modelsAreReady: Bool
     @OptionalObservedObject var maintenance: ModelMaintenance? = nil
@@ -15,7 +16,11 @@ struct ModelIntegritySettingsView: View {
         let _ = locale
         Form {
             Section {
-                LabeledContent(L("模型状态"), value: modelStatus)
+                LabeledContent(L("模型状态")) {
+                    Text(modelStatus).foregroundStyle(.secondary)
+                        .background(HeaderGeometryReader(identifier: "modelStatusValue"))
+                }
+                    .accessibilityValue(modelStatus)
                     .accessibilityIdentifier("modelStatus")
                     .background(HeaderGeometryReader(identifier: "modelStatus"))
                 LabeledContent(L("占用空间"), value: installedSize)

@@ -171,6 +171,7 @@ private struct GeneralSettingsView: View {
 
 private struct AboutSettingsView: View {
     @Environment(\.locale) private var locale
+    @ObservedObject private var localizationPreferences = AppPreferences.shared
     @OptionalObservedObject var maintenance: ModelMaintenance?
     @State private var copiedDiagnostics = false
 

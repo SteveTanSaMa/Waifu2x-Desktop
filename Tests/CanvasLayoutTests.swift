@@ -328,9 +328,13 @@ final class CanvasLayoutTests: XCTestCase {
         workspace.activePanels = []
         workspace.openSample()
         while workspace.isLoading { try await Task.sleep(for: .milliseconds(10)) }
-        let host = NSHostingView(rootView: ContentView(workspace: workspace))
-        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 440),
-                              styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        // This test covers the tightest logical content area. Native titlebar
+        // sizing is covered separately and varies between macOS versions.
+        let minimumContentSize = CanvasPanelLayout.minimumWindowSize
+        let host = NSHostingView(rootView: ContentView(workspace: workspace, configuresWindow: false))
+        host.sizingOptions = []
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: minimumContentSize),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
@@ -339,24 +343,35 @@ final class CanvasLayoutTests: XCTestCase {
             if view.identifier?.rawValue == name { return view }
             return view.subviews.lazy.compactMap { probe(name, in: $0) }.first
         }
-        try await Task.sleep(for: .milliseconds(150))
-        let minimumContentSize = CanvasPanelLayout.minimumWindowSize
+        let deadline = Date().addingTimeInterval(4)
+        var stableSince = Date()
+        var settled = false
+        while Date() < deadline {
+            window.setContentSize(minimumContentSize)
+            host.frame = CGRect(origin: .zero, size: minimumContentSize)
+            host.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            let exact = window.contentLayoutRect.size == minimumContentSize && host.bounds.size == minimumContentSize
+            if !exact { stableSince = Date() }
+            if exact, probe("canvasControlsBounds", in: host) != nil,
+               Date().timeIntervalSince(stableSince) >= 0.15 { settled = true; break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        guard settled else {
+            XCTFail("The minimum content fixture must settle before sampling panel motion: layout=\(window.contentLayoutRect), host=\(host.bounds)")
+            return
+        }
         XCTAssertEqual(window.contentLayoutRect.size, minimumContentSize)
-        // SwiftUI's safe-area sizing can change the outer-frame minimum.
-        // Starting undersized must still settle at that actual minimum while
-        // preserving the required content area, without a fixed titlebar delta.
-        XCTAssertEqual(window.frame.size, window.minSize)
-        XCTAssertGreaterThanOrEqual(window.minSize.width, minimumContentSize.width)
-        XCTAssertGreaterThanOrEqual(window.minSize.height, minimumContentSize.height)
-        print("WINDOW MINIMUM contentLayout=\(window.contentLayoutRect.size) frame=\(window.minSize)")
-        XCTAssertGreaterThanOrEqual(window.frame.width, CanvasPanelLayout.minimumWindowSize.width)
-        XCTAssertGreaterThanOrEqual(window.frame.height, CanvasPanelLayout.minimumWindowSize.height)
+        XCTAssertEqual(host.bounds.size, minimumContentSize)
         for processing in [false, true] {
             workspace.isProcessing = processing
             for panels: Set<CanvasPanel> in [[.images, .options], [.images], [.options], [], [.images, .options]] {
                 workspace.activePanels = panels
                 for _ in 0..<12 {
                     try await Task.sleep(for: .milliseconds(30))
+                    XCTAssertEqual(window.contentLayoutRect.size, minimumContentSize,
+                                   "Panel motion must use the exact minimum content area")
+                    XCTAssertEqual(host.bounds.size, minimumContentSize)
                     let controls = try XCTUnwrap(probe("canvasControlsBounds", in: host))
                     let bar = controls.convert(controls.bounds, to: nil)
                     for name in ["imagesPanelBounds", "optionsPanelBounds"] {

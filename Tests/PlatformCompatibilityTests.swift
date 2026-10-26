@@ -47,11 +47,21 @@ final class PlatformCompatibilityTests: XCTestCase {
             window.isVisible && host.window === window && host.bounds.size == CGSize(width: 720, height: 520)
                 && !fixture.maintenance.isReadingStorage && fixture.maintenance.installedBytes != nil
         }
-        try await waitForText(["Models ready to use"], in: host, message: "The initial model status must use English")
+        let englishStatus = AppLocalization(preferredLanguages: ["en"]).string("模型可正常使用")
+        let japaneseStatus = AppLocalization(preferredLanguages: ["ja"]).string("模型可正常使用")
+        XCTAssertNotEqual(englishStatus, japaneseStatus)
+        try await waitForText([englishStatus], in: host, message: "The initial model status must use English")
         let modelImage = try paneDigest(in: host)
+        let modelValueImage = try await stableGlyphDigest("modelStatusValue", in: host, window: window)
         XCTAssertTrue(window.isVisible)
         preferences.languageCode = "ja"
-        try await waitForText(["モデルを使用できます"], in: host, message: "The existing model pane must translate its actual status text")
+        XCTAssertEqual(preferences.languageCode, "ja")
+        XCTAssertEqual(AppLocalization.current.language, "ja")
+        XCTAssertEqual(L("模型可正常使用"), japaneseStatus)
+        let japaneseValueImage = try await stableGlyphDigest("modelStatusValue", in: host, window: window,
+                                                            differingFrom: modelValueImage)
+        XCTAssertNotEqual(japaneseValueImage, modelValueImage,
+                          "The actual model status value glyphs must translate, independently of the row label")
         XCTAssertNotEqual(try paneDigest(in: host), modelImage)
         XCTAssertTrue(window.isVisible)
         XCTAssertEqual(navigation.selection, .models)
@@ -187,6 +197,38 @@ final class PlatformCompatibilityTests: XCTestCase {
         host.cacheDisplay(in: rect, to: bitmap)
         let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         return SHA256.hash(data: data)
+    }
+
+    private func stableGlyphDigest(_ identifier: String, in host: NSView, window: NSWindow,
+                                   differingFrom baseline: SHA256.Digest? = nil) async throws -> SHA256.Digest {
+        var previous: SHA256.Digest?
+        var stableSince = Date()
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            host.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            if window.isVisible, host.window === window,
+               let glyphs = probe(identifier, in: host), glyphs.bounds.width > 10, glyphs.bounds.height > 10,
+               !glyphs.isHiddenOrHasHiddenAncestor {
+                // Capture only the value Text, never the label, other rows,
+                // version field, or sidebar which also change language.
+                let rect = glyphs.convert(glyphs.bounds, to: host)
+                if host.bounds.contains(rect), let bitmap = host.bitmapImageRepForCachingDisplay(in: rect) {
+                    host.cacheDisplay(in: rect, to: bitmap)
+                    if let data = bitmap.representation(using: .png, properties: [:]) {
+                        let digest = SHA256.hash(data: data)
+                        if digest != previous { previous = digest; stableSince = Date() }
+                        if (baseline == nil || digest != baseline), Date().timeIntervalSince(stableSince) > 0.15 {
+                            return digest
+                        }
+                    }
+                }
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        print("Compatibility glyph timeout for \(identifier): bounds=\(host.bounds), windowVisible=\(window.isVisible), locale=\(AppLocalization.current.language), AX=\(accessibleStrings(host).sorted())")
+        XCTFail("\(identifier) must render stable translated glyphs in the same visible host")
+        throw NSError(domain: "PlatformCompatibilityTests.GlyphTimeout", code: 1)
     }
 
     private func accessibleStrings(_ view: NSView) -> Set<String> {
