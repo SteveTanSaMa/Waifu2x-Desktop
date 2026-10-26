@@ -1,4 +1,4 @@
-import Observation
+import Combine
 import XCTest
 @testable import Waifu2x
 
@@ -91,16 +91,13 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences(defaults: nil, systemLanguages: ["en"])
         let localizationChanges = PreferenceObservationCounter()
         let localeChanges = PreferenceObservationCounter()
-        withObservationTracking {
-            _ = preferences.localizer.string("图像增强")
-        } onChange: {
+        let localizationSubscription = preferences.changes.filter { $0 == .language }.sink { _ in
             localizationChanges.increment()
         }
-        withObservationTracking {
-            _ = preferences.locale
-        } onChange: {
+        let localeSubscription = preferences.changes.filter { $0 == .language }.sink { _ in
             localeChanges.increment()
         }
+        defer { localizationSubscription.cancel(); localeSubscription.cancel() }
         preferences.appearance = "dark"
         preferences.automaticallyCheckUpdates = false
         XCTAssertEqual(localizationChanges.value, 0)
@@ -114,15 +111,8 @@ final class AppPreferencesTests: XCTestCase {
     func testSelectingTheCurrentChoiceDoesNotInvalidateObservers() {
         let preferences = AppPreferences(defaults: nil)
         let changes = PreferenceObservationCounter()
-        withObservationTracking {
-            _ = preferences.languageCode
-            _ = preferences.appearance
-            _ = preferences.automaticallyCheckUpdates
-            _ = preferences.notifiesOnCompletion
-            _ = preferences.preventsSleepWhileProcessing
-        } onChange: {
-            changes.increment()
-        }
+        let subscription = preferences.objectWillChange.sink { changes.increment() }
+        defer { subscription.cancel() }
         preferences.languageCode = "system"
         preferences.appearance = "system"
         preferences.automaticallyCheckUpdates = true
@@ -135,13 +125,32 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences(defaults: nil)
         let notificationChanges = PreferenceObservationCounter()
         let sleepChanges = PreferenceObservationCounter()
-        withObservationTracking { _ = preferences.notifiesOnCompletion } onChange: { notificationChanges.increment() }
-        withObservationTracking { _ = preferences.preventsSleepWhileProcessing } onChange: { sleepChanges.increment() }
+        let notificationSubscription = preferences.changes.filter { $0 == .notifiesOnCompletion }
+            .sink { _ in notificationChanges.increment() }
+        let sleepSubscription = preferences.changes.filter { $0 == .preventsSleepWhileProcessing }
+            .sink { _ in sleepChanges.increment() }
+        defer { notificationSubscription.cancel(); sleepSubscription.cancel() }
         preferences.notifiesOnCompletion = true
         XCTAssertEqual(notificationChanges.value, 1)
         XCTAssertEqual(sleepChanges.value, 0)
         preferences.preventsSleepWhileProcessing = false
         XCTAssertEqual(sleepChanges.value, 1)
+    }
+
+    func testConcurrentIdenticalLanguageChangesPublishOnlyTheCommittedSnapshot() {
+        let preferences = AppPreferences(defaults: nil, systemLanguages: ["en"])
+        let changes = PreferenceObservationCounter()
+        let subscription = preferences.changes.filter { $0 == .language }.sink { _ in
+            // Reading inside a synchronous subscriber must neither deadlock nor
+            // expose a language code from a different cached-localizer snapshot.
+            XCTAssertEqual(preferences.languageCode, "ja")
+            XCTAssertEqual(preferences.localizer.language, "ja")
+            XCTAssertEqual(preferences.locale.identifier, "ja")
+            changes.increment()
+        }
+        defer { subscription.cancel() }
+        DispatchQueue.concurrentPerform(iterations: 50) { _ in preferences.languageCode = "ja" }
+        XCTAssertEqual(changes.value, 1)
     }
 
     func testBackgroundLocalizationReadsDuringLanguageChanges() {

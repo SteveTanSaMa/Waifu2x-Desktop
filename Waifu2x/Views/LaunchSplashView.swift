@@ -3,6 +3,7 @@ import SwiftUI
 /// StartupState owns the two-second clock and decides when this surface leaves.
 /// Keeping the view passive avoids duplicate launch work when SwiftUI remounts it.
 struct LaunchSplashView: View {
+    @Environment(\.locale) private var locale
     let progress: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -10,6 +11,7 @@ struct LaunchSplashView: View {
     private var reveal: Double { reduceMotion ? 1 : min(1, fraction / 0.72) }
 
     var body: some View {
+        let _ = locale
         GeometryReader { geometry in
             ZStack {
                 Color(nsColor: .windowBackgroundColor)
@@ -40,8 +42,7 @@ struct LaunchSplashView: View {
                 .accessibilityElement(children: .combine)
             }
             .overlay(alignment: .top) {
-                Color.clear.frame(height: 64).contentShape(Rectangle())
-                    .gesture(WindowDragGesture()).allowsWindowActivationEvents(true)
+                WorkspaceWindowDragRegion().frame(height: 64)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -53,9 +54,11 @@ struct LaunchSplashView: View {
 /// A code-native extension of the app's mountain motif, sharpening as launch
 /// progresses. Its quiet water highlight makes one pass rather than looping.
 private struct SplashMountainMark: View {
+    @Environment(\.locale) private var locale
     let light: Double
 
     var body: some View {
+        let _ = locale
         Canvas { context, size in
             let scale = min(size.width, size.height) / 232
             var canvas = context

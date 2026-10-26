@@ -5,13 +5,15 @@ options:
   useBaseInternationalization: false
   preGenCommand: bash script/bootstrap.sh
   deploymentTarget:
-    macOS: '26.0'
+    macOS: '13.0'
   xcodeVersion: '27.0'
 settings:
   base:
     SWIFT_VERSION: '5.0'
+    # The rebuilt runtime uses the host architecture, including Release builds.
+    ONLY_ACTIVE_ARCH: YES
     WAIFU2X_TEST_MODE: ''
-    MACOSX_DEPLOYMENT_TARGET: '26.0'
+    MACOSX_DEPLOYMENT_TARGET: '13.0'
     CODE_SIGN_IDENTITY: '-'
     CODE_SIGN_STYLE: Manual
     # Ad-hoc local builds have no Team ID for hardened library validation.
@@ -40,7 +42,7 @@ targets:
         buildPhase: resources
     dependencies:
       - sdk: libarchive.tbd
-      - framework: Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib
+      - framework: build/onnxruntime-macos13/Runtime/lib/libonnxruntime.1.23.2.dylib
         embed: true
         codeSign: true
     info:
@@ -64,8 +66,8 @@ targets:
     settings:
       base:
         SWIFT_OBJC_BRIDGING_HEADER: Waifu2x/Interop/Waifu2x-Bridging-Header.h
-        LIBRARY_SEARCH_PATHS: ['$(inherited)', '$(SRCROOT)/Vendor/onnxruntime/lib']
-        HEADER_SEARCH_PATHS: '$(SRCROOT)/Vendor/onnxruntime/include'
+        LIBRARY_SEARCH_PATHS: ['$(inherited)', '$(SRCROOT)/build/onnxruntime-macos13/Runtime/lib']
+        HEADER_SEARCH_PATHS: '$(SRCROOT)/build/onnxruntime-macos13/Runtime/include'
         CLANG_CXX_LANGUAGE_STANDARD: c++17
         LD_RUNPATH_SEARCH_PATHS: '$(inherited) @executable_path/../Frameworks'
         PRODUCT_BUNDLE_IDENTIFIER: studio.stevetan.Waifu2x
@@ -78,15 +80,15 @@ targets:
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: '1.0.2'
-        CURRENT_PROJECT_VERSION: '3'
+        MARKETING_VERSION: '1.0.3'
+        CURRENT_PROJECT_VERSION: '4'
     preBuildScripts:
       - name: Prepare inference runtime without models
         script: 'bash "$SRCROOT/script/bootstrap.sh"'
         outputFiles:
           - '$(SRCROOT)/Waifu2x/Resources/Runtime/Engine'
-          - '$(SRCROOT)/Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib'
-          - '$(SRCROOT)/Vendor/onnxruntime/include'
+          - '$(SRCROOT)/build/onnxruntime-macos13/Runtime/lib/libonnxruntime.1.23.2.dylib'
+          - '$(SRCROOT)/build/onnxruntime-macos13/Runtime/include'
         basedOnDependencyAnalysis: false
     postBuildScripts:
       - name: Sign inference helper
@@ -100,6 +102,8 @@ targets:
       - target: Waifu2x
     settings:
       base:
+        # Xcode 27's XCTest runtime requires macOS 14; the shipped app targets 13.
+        MACOSX_DEPLOYMENT_TARGET: '14.0'
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   Waifu2x:

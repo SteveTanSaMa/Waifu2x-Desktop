@@ -1,17 +1,17 @@
 import AppKit
-import Observation
+import Combine
 import UniformTypeIdentifiers
 
-@MainActor @Observable
-final class Workspace {
-    var images: [QueueImage] = []
-    private(set) var selectedID: UUID?
-    private(set) var isMultiSelecting = false
-    private(set) var markedIDs: Set<UUID> = []
+@MainActor
+final class Workspace: ObservableObject {
+    @Published var images: [QueueImage] = [] { didSet { observeImages() } }
+    @Published private(set) var selectedID: UUID?
+    @Published private(set) var isMultiSelecting = false
+    @Published private(set) var markedIDs: Set<UUID> = []
     var processingImages: [QueueImage] { isMultiSelecting ? images.filter { markedIDs.contains($0.id) } : selectedImage.map { [$0] } ?? [] }
-    var canStartProcessing: @MainActor () -> Bool = { true }
+    @Published var canStartProcessing: @MainActor () -> Bool = { true }
     var canProcessSelection: Bool { !isShuttingDown && canStartProcessing() && !processingImages.isEmpty && !isLoading && !isExporting && pendingRestart == nil && options.isValid }
-    @ObservationIgnored var workflow: ProcessingWorkflow?
+    var workflow: ProcessingWorkflow?
 
     func toggleMultiSelection() {
         guard !busy else { return }
@@ -27,27 +27,27 @@ final class Workspace {
     var selectedImage: QueueImage? { images.first { $0.id == selectedID } }
     var input: ImageAsset? { selectedImage?.input }
     var result: ProcessingResult? { selectedImage?.result }
-    var options = ProcessingOptions() {
+    @Published var options = ProcessingOptions() {
         didSet {
             if persistOptions, let data = try? JSONEncoder().encode(options) { UserDefaults.standard.set(data, forKey: "processingOptions.v2") }
         }
     }
     private let persistOptions: Bool
-    var preview: PreviewMode = .result
-    var split = 0.5
-    var zoom: CGFloat = 1
-    private(set) var viewResetID = UUID()
-    var actualSizeRequested = false
-    var isProcessing = false
-    var isLoading = false
-    var isExporting = false
-    private var pendingImports: [URL] = []
-    var tileProgress: TileProgress?
-    var stage = L("正在准备图片")
-    var startedAt = Date()
-    var errorMessage: String?
-    var notice: String?
-    var activePanels: Set<CanvasPanel> = Set(CanvasPanel.allCases)
+    @Published var preview: PreviewMode = .result
+    @Published var split = 0.5
+    @Published var zoom: CGFloat = 1
+    @Published private(set) var viewResetID = UUID()
+    @Published var actualSizeRequested = false
+    @Published var isProcessing = false
+    @Published var isLoading = false
+    @Published var isExporting = false
+    @Published private var pendingImports: [URL] = []
+    @Published var tileProgress: TileProgress?
+    @Published var stage = L("正在准备图片")
+    @Published var startedAt = Date()
+    @Published var errorMessage: String?
+    @Published var notice: String?
+    @Published var activePanels: Set<CanvasPanel> = Set(CanvasPanel.allCases)
     var showsOptions: Bool {
         get { activePanels.contains(.options) }
         set { if newValue { activePanels.insert(.options) } else { activePanels.remove(.options) } }
@@ -56,25 +56,27 @@ final class Workspace {
         get { activePanels.contains(.images) }
         set { if newValue { activePanels.insert(.images) } else { activePanels.remove(.images) } }
     }
-    var pixelScale: CGFloat = 1
+    @Published var pixelScale: CGFloat = 1
     var displayedAsset: ImageAsset? { preview == .original ? input : (result?.asset ?? input) }
-    private(set) var activeID: UUID?
-    private(set) var batchIndex = 0
-    private(set) var batchCount = 0
-    private(set) var activeOptions: ProcessingOptions?
-    var showsRestartConfirmation = false
-    private var restartCandidateIDs: [UUID] = []
+    @Published private(set) var activeID: UUID?
+    @Published private(set) var batchIndex = 0
+    @Published private(set) var batchCount = 0
+    @Published private(set) var activeOptions: ProcessingOptions?
+    @Published var showsRestartConfirmation = false
+    @Published private var restartCandidateIDs: [UUID] = []
     private struct ProcessingRequest {
         let imageIDs: [UUID]
         let settings: ProcessingOptions
     }
-    private var pendingRestart: ProcessingRequest?
-    private var cancellationRequested = false
-    private var isShuttingDown = false
-    @ObservationIgnored private let makeInference: @MainActor () -> any WorkspaceInference
-    @ObservationIgnored nonisolated(unsafe) private var engine: (any WorkspaceInference)?
-    @ObservationIgnored nonisolated(unsafe) private var task: Task<Void, Never>?
-    private var operationID = UUID()
+    @Published private var pendingRestart: ProcessingRequest?
+    @Published private var cancellationRequested = false
+    @Published private var isShuttingDown = false
+    private let makeInference: @MainActor () -> any WorkspaceInference
+    nonisolated(unsafe) private var engine: (any WorkspaceInference)?
+    nonisolated(unsafe) private var task: Task<Void, Never>?
+    @Published private var operationID = UUID()
+    private var imageChanges: [AnyCancellable] = []
+    private var availabilityChanges: AnyCancellable?
     let directory: URL
 
     init(persistOptions: Bool = true, workflow: ProcessingWorkflow? = nil,
@@ -88,6 +90,18 @@ final class Workspace {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
     deinit { task?.cancel(); engine?.cancel(); try? FileManager.default.removeItem(at: directory) }
+
+    /// External maintenance affects the processing gate even while the image
+    /// queue itself is unchanged. Keep that dependency explicit on macOS 13.
+    func observeProcessingAvailability(_ changes: ObservableObjectPublisher) {
+        availabilityChanges = changes.sink { [weak self] in self?.objectWillChange.send() }
+    }
+
+    private func observeImages() {
+        imageChanges = images.map { image in
+            image.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        }
+    }
 
     var busy: Bool { isProcessing || isLoading || isExporting }
     var isSelectedProcessing: Bool { isProcessing && selectedID == activeID }

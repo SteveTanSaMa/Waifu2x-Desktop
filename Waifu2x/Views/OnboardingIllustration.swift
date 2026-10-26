@@ -3,6 +3,7 @@ import SwiftUI
 /// A camera moves over a simplified version of the actual workspace. Pointer
 /// actions and the resulting UI share one timeline, including static previews.
 struct OnboardingIllustration: View {
+    @Environment(\.locale) private var locale
     let step: OnboardingStep
     var animates = true
     var previewTime: TimeInterval? = nil
@@ -12,6 +13,7 @@ struct OnboardingIllustration: View {
     private var reduceMotion: Bool { systemReduceMotion || !animates }
 
     var body: some View {
+        let _ = locale
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || pausedElapsed != nil || previewTime != nil)) { timeline in
             let elapsed = previewTime ?? pausedElapsed ?? max(0, timeline.date.timeIntervalSince(startedAt))
             let frame = reduceMotion && previewTime == nil
@@ -65,7 +67,7 @@ struct OnboardingIllustration: View {
                 }
             }
         }
-        .onChange(of: step) { _, _ in
+        .onChange(of: step) { _ in
             startedAt = .now
             pausedElapsed = nil
         }

@@ -1,5 +1,5 @@
 import AppKit
-import Observation
+import Combine
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general, models, updates, about
@@ -22,13 +22,13 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor @Observable
-final class SettingsNavigation {
-    var selection: SettingsSection? = .general
-    @ObservationIgnored weak var mainWindow: NSWindow?
-    @ObservationIgnored private(set) weak var settingsWindow: NSWindow?
-    @ObservationIgnored private var placement: Task<Void, Never>?
-    @ObservationIgnored var preventsFocusDismissal: @MainActor () -> Bool = { false }
+@MainActor
+final class SettingsNavigation: ObservableObject {
+    @Published var selection: SettingsSection? = .general
+    weak var mainWindow: NSWindow?
+    private(set) weak var settingsWindow: NSWindow?
+    private var placement: Task<Void, Never>?
+    var preventsFocusDismissal: @MainActor () -> Bool = { false }
 
     func closeIfVisible() -> Bool {
         guard let window = settingsWindow, window.isVisible else { return false }

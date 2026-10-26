@@ -1,12 +1,12 @@
+import Combine
 import Foundation
-import Observation
 
-/// Shared preferences also serve localization calls made by background services.
-/// All mutable storage, including the cached localizer and defaults, is protected
-/// by `lock`; ObservationRegistrar supports concurrent access. Views perform their
-/// preference mutations on the main actor, while reads can occur on any thread.
-@Observable
-final class AppPreferences: @unchecked Sendable {
+/// Preferences are shared with background localization readers. The lock protects
+/// each stored value and its cached localizer; change events follow the committed
+/// snapshot, so subscribers can safely read the new value without taking our lock.
+final class AppPreferences: ObservableObject, @unchecked Sendable {
+    enum Change: Equatable { case language, appearance, automaticallyCheckUpdates, notifiesOnCompletion, preventsSleepWhileProcessing }
+
     static let languageKey = "preferences.language"
     static let appearanceKey = "preferences.appearance"
     static let automaticallyCheckUpdatesKey = "preferences.automaticallyCheckUpdates"
@@ -24,18 +24,21 @@ final class AppPreferences: @unchecked Sendable {
         return AppPreferences(defaults: isolated ? nil : .standard)
     }()
 
-    @ObservationIgnored private let lock = NSLock()
-    @ObservationIgnored private let defaults: UserDefaults?
-    @ObservationIgnored private let systemLanguages: [String]
-    @ObservationIgnored private var storedLanguageCode: String
-    @ObservationIgnored private var storedAppearance: String
-    @ObservationIgnored private var storedAutomaticallyCheckUpdates: Bool
-    @ObservationIgnored private var storedNotifiesOnCompletion: Bool
-    @ObservationIgnored private var storedPreventsSleepWhileProcessing: Bool
-    @ObservationIgnored private var cachedLocalizer: AppLocalization
+    let objectWillChange = ObservableObjectPublisher()
+    private let changeSubject = PassthroughSubject<Change, Never>()
+    var changes: AnyPublisher<Change, Never> { changeSubject.eraseToAnyPublisher() }
+    private let lock = NSLock()
+    private let defaults: UserDefaults?
+    private let systemLanguages: [String]
+    private var storedLanguageCode: String
+    private var storedAppearance: String
+    private var storedAutomaticallyCheckUpdates: Bool
+    private var storedNotifiesOnCompletion: Bool
+    private var storedPreventsSleepWhileProcessing: Bool
+    private var cachedLocalizer: AppLocalization
 
-    /// Pass a dedicated suite for persistence tests or nil for an in-memory
-    /// session. Neither mode reads or writes the application's standard defaults.
+    /// A dedicated suite or nil keeps tests and isolated sessions separate from
+    /// the user's actual application preferences.
     init(defaults: UserDefaults? = .standard, systemLanguages: [String] = Locale.preferredLanguages) {
         self.defaults = defaults
         self.systemLanguages = systemLanguages
@@ -49,97 +52,84 @@ final class AppPreferences: @unchecked Sendable {
     }
 
     var languageCode: String {
-        get {
-            access(keyPath: \.languageCode)
-            return lock.withLock { storedLanguageCode }
-        }
+        get { lock.withLock { storedLanguageCode } }
         set {
             let language = Self.validLanguage(newValue)
-            guard languageCode != language else { return }
             let localizer = AppLocalization(preferredLanguages: language == "system" ? systemLanguages : [language])
-            withMutation(keyPath: \.languageCode) {
-                lock.withLock {
-                    storedLanguageCode = language
-                    cachedLocalizer = localizer
-                    defaults?.set(language, forKey: Self.languageKey)
-                }
+            let changed = lock.withLock {
+                guard storedLanguageCode != language else { return false }
+                storedLanguageCode = language
+                cachedLocalizer = localizer
+                defaults?.set(language, forKey: Self.languageKey)
+                return true
             }
+            if changed { publish(.language) }
         }
     }
 
     var appearance: String {
-        get {
-            access(keyPath: \.appearance)
-            return lock.withLock { storedAppearance }
-        }
+        get { lock.withLock { storedAppearance } }
         set {
             let appearance = Self.validAppearance(newValue)
-            guard self.appearance != appearance else { return }
-            withMutation(keyPath: \.appearance) {
-                lock.withLock {
-                    storedAppearance = appearance
-                    defaults?.set(appearance, forKey: Self.appearanceKey)
-                }
+            let changed = lock.withLock {
+                guard storedAppearance != appearance else { return false }
+                storedAppearance = appearance
+                defaults?.set(appearance, forKey: Self.appearanceKey)
+                return true
             }
+            if changed { publish(.appearance) }
         }
     }
 
     var automaticallyCheckUpdates: Bool {
-        get {
-            access(keyPath: \.automaticallyCheckUpdates)
-            return lock.withLock { storedAutomaticallyCheckUpdates }
-        }
+        get { lock.withLock { storedAutomaticallyCheckUpdates } }
         set {
-            guard automaticallyCheckUpdates != newValue else { return }
-            withMutation(keyPath: \.automaticallyCheckUpdates) {
-                lock.withLock {
-                    storedAutomaticallyCheckUpdates = newValue
-                    defaults?.set(newValue, forKey: Self.automaticallyCheckUpdatesKey)
-                }
+            let changed = lock.withLock {
+                guard storedAutomaticallyCheckUpdates != newValue else { return false }
+                storedAutomaticallyCheckUpdates = newValue
+                defaults?.set(newValue, forKey: Self.automaticallyCheckUpdatesKey)
+                return true
             }
+            if changed { publish(.automaticallyCheckUpdates) }
         }
     }
 
     var notifiesOnCompletion: Bool {
-        get {
-            access(keyPath: \.notifiesOnCompletion)
-            return lock.withLock { storedNotifiesOnCompletion }
-        }
+        get { lock.withLock { storedNotifiesOnCompletion } }
         set {
-            guard notifiesOnCompletion != newValue else { return }
-            withMutation(keyPath: \.notifiesOnCompletion) {
-                lock.withLock {
-                    storedNotifiesOnCompletion = newValue
-                    defaults?.set(newValue, forKey: Self.notifiesOnCompletionKey)
-                }
+            let changed = lock.withLock {
+                guard storedNotifiesOnCompletion != newValue else { return false }
+                storedNotifiesOnCompletion = newValue
+                defaults?.set(newValue, forKey: Self.notifiesOnCompletionKey)
+                return true
             }
+            if changed { publish(.notifiesOnCompletion) }
         }
     }
 
     var preventsSleepWhileProcessing: Bool {
-        get {
-            access(keyPath: \.preventsSleepWhileProcessing)
-            return lock.withLock { storedPreventsSleepWhileProcessing }
-        }
+        get { lock.withLock { storedPreventsSleepWhileProcessing } }
         set {
-            guard preventsSleepWhileProcessing != newValue else { return }
-            withMutation(keyPath: \.preventsSleepWhileProcessing) {
-                lock.withLock {
-                    storedPreventsSleepWhileProcessing = newValue
-                    defaults?.set(newValue, forKey: Self.preventsSleepWhileProcessingKey)
-                }
+            let changed = lock.withLock {
+                guard storedPreventsSleepWhileProcessing != newValue else { return false }
+                storedPreventsSleepWhileProcessing = newValue
+                defaults?.set(newValue, forKey: Self.preventsSleepWhileProcessingKey)
+                return true
             }
+            if changed { publish(.preventsSleepWhileProcessing) }
         }
     }
 
-    /// Reading L() within a view body registers this language dependency, so a
-    /// language switch updates existing views without replacing workspace state.
-    var localizer: AppLocalization {
-        access(keyPath: \.languageCode)
-        return lock.withLock { cachedLocalizer }
-    }
-
+    var localizer: AppLocalization { lock.withLock { cachedLocalizer } }
     var locale: Locale { localizer.locale }
+
+    private func publish(_ change: Change) {
+        changeSubject.send(change)
+        // Production UI mutations are main-actor driven. A background caller is
+        // still safe: keep SwiftUI invalidation on its required main queue.
+        if Thread.isMainThread { objectWillChange.send() }
+        else { DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() } }
+    }
 
     private static func validLanguage(_ value: String) -> String {
         languageCodes.contains(value) ? value : "system"

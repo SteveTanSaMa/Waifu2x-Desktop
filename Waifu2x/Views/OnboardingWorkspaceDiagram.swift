@@ -3,10 +3,12 @@ import SwiftUI
 /// A deliberately simplified workspace, drawn in the real window's coordinate space.
 /// The surrounding tutorial owns the camera, pointer, and control highlights.
 struct OnboardingWorkspaceDiagram: View {
+    @Environment(\.locale) private var locale
     let frame: OnboardingDemoFrame
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let _ = locale
         Canvas { context, _ in
             var drawing = WorkspaceDiagramDrawing(context: context, dark: colorScheme == .dark)
             drawing.draw(frame)

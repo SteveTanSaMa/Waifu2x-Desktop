@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import Observation
+import Combine
 import XCTest
 @testable import Waifu2x
 
@@ -166,14 +166,13 @@ final class ModelRepairTests: XCTestCase {
         XCTAssertGreaterThan(manager.downloadedBytes, remaining,
                              "The previous aggregate includes the already installed repair")
         let report = RepairCounterReport()
-        withObservationTracking {
-            _ = manager.totalBytes
-        } onChange: {
+        let subscription = manager.$totalBytes.dropFirst().sink { _ in
             Task { @MainActor in
                 report.record(bytes: manager.downloadedBytes, total: manager.totalBytes ?? 0,
                               progress: manager.progress)
             }
         }
+        defer { subscription.cancel() }
         manager.togglePause()
         try await wait { report.snapshot != nil && manager.status == .downloading && manager.totalBytes == remaining }
         let observed = try XCTUnwrap(report.snapshot)

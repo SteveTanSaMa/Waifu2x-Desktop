@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     case addImages, enhance, compareAndExport
@@ -44,16 +44,16 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
 /// Completion is saved only after an explicit skip or finish.
 /// QA launches can show the tutorial without changing the real first-run flag.
-@MainActor @Observable
-final class OnboardingState {
+@MainActor
+final class OnboardingState: ObservableObject {
     static let completionKey = "onboarding.completedVersion"
     static let currentVersion = 1
 
-    var isPresented = false
-    private(set) var step: OnboardingStep = .addImages
+    @Published var isPresented = false
+    @Published private(set) var step: OnboardingStep = .addImages
     private let defaults: UserDefaults
-    private var hasCheckedLaunch = false
-    private var persistsCompletion = true
+    @Published private var hasCheckedLaunch = false
+    @Published private var persistsCompletion = true
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 

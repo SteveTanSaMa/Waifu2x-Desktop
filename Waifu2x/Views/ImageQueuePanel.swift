@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct ImageQueuePanel: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         VStack(alignment: .leading, spacing: 14) {
             ViewThatFits(in: .horizontal) {
                 HStack {
@@ -103,7 +105,8 @@ struct ImageQueuePanel: View {
 }
 
 private struct QueueImageRow: View {
-    let image: QueueImage
+    @Environment(\.locale) private var locale
+    @ObservedObject var image: QueueImage
     let selected: Bool
     let multiSelecting: Bool
     let marked: Bool
@@ -112,6 +115,7 @@ private struct QueueImageRow: View {
     let select: () -> Void
     let remove: () -> Void
     var body: some View {
+        let _ = locale
         HStack(spacing: 4) {
             if multiSelecting {
                 Button(action: toggleMark) {
@@ -126,8 +130,8 @@ private struct QueueImageRow: View {
                     Image(decorative: image.input.image, scale: 1)
                         .resizable().aspectRatio(contentMode: .fit)
                         .frame(width: 54, height: 54)
-                        .background(.primary.opacity(0.04), in: .rect(cornerRadius: 6))
-                        .clipShape(.rect(cornerRadius: 6))
+                        .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(image.input.name).font(.system(size: 14, weight: .medium)).lineLimit(1).truncationMode(.middle)
                         HStack(spacing: 5) {
@@ -141,12 +145,12 @@ private struct QueueImageRow: View {
                 }.contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
             if canRemove {
-                Button(L("移除 %@", image.input.name), systemImage: "xmark", action: remove)
+                Button(action: remove) { Label(L("移除 %@", image.input.name), systemImage: "xmark") }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).font(.system(size: 10))
                     .foregroundStyle(.secondary).help(L("从列表移除，不影响源文件"))
             }
         }.padding(8)
-        .background((multiSelecting ? marked : selected) ? Color.accentColor.opacity(0.14) : .clear, in: .rect(cornerRadius: 10))
+        .background((multiSelecting ? marked : selected) ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .help(image.failure ?? image.input.dimensions)
         .contextMenu {
             if let failure = image.failure { Text(failure) }

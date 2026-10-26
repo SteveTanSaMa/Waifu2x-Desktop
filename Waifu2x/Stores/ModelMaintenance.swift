@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 enum ModelDiagnosticStatus: Equatable, Sendable {
     case unknown, checking, ready, issues, repairing
@@ -10,24 +10,31 @@ enum ModelRepairOutcome: Equatable, Sendable {
 }
 
 /// App-owned so closing Settings never interrupts a repair or releases its inference gate.
-@MainActor @Observable
-final class ModelMaintenance {
-    private(set) var isRepairing = false
-    private(set) var isVerifyingRepair = false
-    private(set) var repairOutcome: ModelRepairOutcome = .none
-    private(set) var installedBytes: Int64?
-    private(set) var isReadingStorage = false
-    private(set) var downloader: ModelDownloadManager?
-    private var startupValidated = false
-    private var requiresValidation = false
-    @ObservationIgnored private let checker: FileIntegrityChecker
-    @ObservationIgnored private let catalog: ModelCatalog?
-    @ObservationIgnored private let paths: ModelPaths
-    @ObservationIgnored private let canRepair: @MainActor () -> Bool
-    @ObservationIgnored private let downloaderFactory: @MainActor () -> ModelDownloadManager
-    @ObservationIgnored private var work: Task<Void, Never>?
-    @ObservationIgnored private var cancellationRequested = false
-    @ObservationIgnored private var storageOperation = UUID()
+@MainActor
+final class ModelMaintenance: ObservableObject {
+    @Published private(set) var isRepairing = false
+    @Published private(set) var isVerifyingRepair = false
+    @Published private(set) var repairOutcome: ModelRepairOutcome = .none
+    @Published private(set) var installedBytes: Int64?
+    @Published private(set) var isReadingStorage = false
+    @Published private(set) var downloader: ModelDownloadManager? {
+        didSet {
+            downloadChanges = downloader?.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        }
+    }
+    @Published private var startupValidated = false
+    @Published private var requiresValidation = false
+    private let checker: FileIntegrityChecker
+    private let catalog: ModelCatalog?
+    private let paths: ModelPaths
+    private let canRepair: @MainActor () -> Bool
+    private let downloaderFactory: @MainActor () -> ModelDownloadManager
+    private var work: Task<Void, Never>?
+    private var cancellationRequested = false
+    private var storageOperation = UUID()
+    private var checkerChanges: AnyCancellable?
+    private var downloadChanges: AnyCancellable?
+    private var workspaceAvailabilityChanges: AnyCancellable?
 
     var hasModelIssues: Bool { checker.modelVerification == .issues }
 
@@ -68,6 +75,15 @@ final class ModelMaintenance {
         } catch { loaded = nil }
         self.catalog = loaded
         self.downloaderFactory = downloaderFactory ?? { ModelDownloadManager(catalog: loaded, paths: paths) }
+        checkerChanges = checker.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+    }
+
+    /// Only the workspace's own busy flags are observed. Forwarding its entire
+    /// object publisher would cycle through the reverse inference-gate dependency.
+    func observeRepairAvailability(_ workspace: Workspace) {
+        workspaceAvailabilityChanges = workspace.$isProcessing
+            .combineLatest(workspace.$isLoading, workspace.$isExporting)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
     }
 
     /// Called only after startup's complete model verification has succeeded.

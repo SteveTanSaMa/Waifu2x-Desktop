@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct ProcessingOptionsPanel: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -67,10 +69,12 @@ struct ProcessingOptionsPanel: View {
 }
 
 private struct ScaleChoice: View {
+    @Environment(\.locale) private var locale
     let scale: Int
     let selected: Bool
     let action: () -> Void
     var body: some View {
+        let _ = locale
         Button(action: action) {
             VStack(spacing: 6) {
                 Text(L("%d×", scale)).font(.system(size: 25, weight: .medium, design: .rounded))
@@ -80,23 +84,25 @@ private struct ScaleChoice: View {
             }
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.045), in: .rect(cornerRadius: 12))
+            .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if selected { Image(systemName: "checkmark").font(.system(size: 9, weight: .semibold)).foregroundStyle(Color.accentColor).padding(8) }
             }
             .foregroundStyle(.primary)
-            .contentShape(.rect(cornerRadius: 12))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }.buttonStyle(ParameterButtonStyle()).accessibilityLabel(scale == 1 ? L("原尺寸，不放大") : L("放大 %d 倍", scale))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
 private struct NoiseChoice: View {
+    @Environment(\.locale) private var locale
     let level: Int
     let selected: Bool
     let action: () -> Void
     private var title: String { level == -1 ? L("关闭") : [L("轻度"), L("适中"), L("较强"), L("强力")][level] }
     var body: some View {
+        let _ = locale
         Button(action: action) {
             VStack(spacing: 8) {
                 HStack(alignment: .bottom, spacing: 3) {
@@ -109,12 +115,12 @@ private struct NoiseChoice: View {
                     .lineLimit(2).minimumScaleFactor(0.85).multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.045), in: .rect(cornerRadius: 10))
+            .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if selected { Image(systemName: "checkmark").font(.system(size: 8, weight: .semibold)).foregroundStyle(Color.accentColor).padding(5) }
             }
             .foregroundStyle(.primary)
-            .contentShape(.rect(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }.buttonStyle(ParameterButtonStyle()).accessibilityLabel(level == -1 ? L("不降噪") : L("降噪%@，级别 %d", title, level))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

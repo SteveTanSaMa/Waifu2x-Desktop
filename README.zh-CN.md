@@ -4,11 +4,11 @@
 
 原生 macOS 图片放大与降噪应用，在本机处理图片，以安静的青绿色工作区呈现画面细节。
 
-**版本 1.0.2 · macOS 26 或更高版本**
+**版本 1.0.3 · macOS 13.0 或更高版本**
 
 ## 下载与安装
 
-从 [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest) 下载 **Apple Silicon（arm64）** DMG 或 ZIP。打开 DMG 后将 **Waifu2x** 拖入 **Applications（应用程序）**；使用 ZIP 时，解压后将应用移入应用程序目录。安装包要求 macOS 26 或更高版本，不支持 Intel Mac。可使用附带的 `SHA256SUMS` 核对下载文件。
+从 [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest) 下载 **Apple Silicon（arm64）** DMG 或 ZIP。打开 DMG 后将 **Waifu2x** 拖入 **Applications（应用程序）**；使用 ZIP 时，解压后将应用移入应用程序目录。安装包要求 macOS 13.0 或更高版本，不支持 Intel Mac。可使用附带的 `SHA256SUMS` 核对下载文件。
 
 应用使用无需证书的临时签名（ad-hoc），**未使用 Developer ID 签名，未经 Apple 公证**。若 macOS 阻止首次打开，且你信任此下载，可先尝试打开应用，再前往 **系统设置 → 隐私与安全性 → 仍要打开**。详见 [Apple 操作说明](https://support.apple.com/zh-cn/102445)。
 
@@ -36,7 +36,7 @@
 
 后续启动会在开屏动画下校验已安装的模型，再进入工作区。仅当文件需要下载、解压或准备过程出现异常时，才显示模型准备页面。
 
-模型权重按需下载，不随应用内置。1.0.2 版本从本项目的 GitHub Release 下载单个压缩归档 [`Waifu2x-models-v1.tar.xz`](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.2/Waifu2x-models-v1.tar.xz)，实际下载 **839,373,332 字节（约 839 MB）**，比解压后的模型数据**减少约 23.4%**。解压后包含 **99 个模型及辅助文件**，合计 **1,095,327,613 字节，约 1.1 GB**。下载页面显示真实进度，支持暂停、继续和重试，左侧山海画作随下载进度逐步成形。归档包及解压后的每个文件在使用前均会核对预期大小及 SHA-256 校验值。
+模型权重按需下载，不随应用内置。1.0.3 版本从本项目的 GitHub Release 下载单个压缩归档 [`Waifu2x-models-v1.tar.xz`](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.3/Waifu2x-models-v1.tar.xz)，实际下载 **839,373,332 字节（约 839 MB）**，比解压后的模型数据**减少约 23.4%**。解压后包含 **99 个模型及辅助文件**，合计 **1,095,327,613 字节，约 1.1 GB**。下载页面显示真实进度，支持暂停、继续和重试，左侧山海画作随下载进度逐步成形。归档包及解压后的每个文件在使用前均会核对预期大小及 SHA-256 校验值。
 
 归档包保留以下上游来源的原始模型文件：
 
@@ -59,9 +59,9 @@
 
 环境要求：
 
-- macOS 26 或更高版本
-- Xcode 27 或更高版本，并选中其开发工具链
-- Python 3
+- 支持 Xcode 27 或更高版本的构建主机，并选中其开发工具链
+- 应用运行目标：macOS 13.0 或更高版本
+- Python 3.10 或更高版本、CMake、Ninja、Node.js、npm 和 Git
 - 首次准备运行库及下载模型时需要网络连接
 
 ```sh
@@ -76,7 +76,7 @@ open Waifu2x.xcodeproj
 ./script/build_and_run.sh
 ```
 
-构建会调用 `bootstrap.sh`，下载固定版本的 ONNX Runtime **1.23.2** macOS 通用运行库与头文件，以及 **20250915** 版 ncnn 推理程序。脚本校验下载归档后，准备被 Git 忽略的 `Vendor/` 与运行时目录，后续构建会复用校验通过的本地依赖。也可单独执行 `./script/bootstrap.sh`。此过程不安装应用所需的模型权重。依赖版本和校验值记录于 [runtime-dependencies.json](script/runtime-dependencies.json)。
+构建会调用 `bootstrap.sh`，下载固定版本的 ONNX Runtime **1.23.2** macOS 通用运行库与头文件，以及 **20250915** 版 ncnn 推理程序。脚本校验下载归档后，准备被 Git 忽略的 `Vendor/` 与运行时目录，后续构建会复用校验通过的本地依赖。也可单独执行 `./script/bootstrap.sh`。为覆盖 macOS 13.0–13.3，构建会重新编译同版本 ONNX Runtime，并保留 CPU、CoreML 与 WebGPU；上游二进制最低要求为 macOS 13.4。首次源码构建需要更长时间，后续构建复用校验过的缓存，详见 [macOS 13 运行库构建说明](script/onnxruntime-macos13.md)。此过程不安装应用所需的模型权重。依赖版本和校验值记录于 [runtime-dependencies.json](script/runtime-dependencies.json)。
 
 仓库已包含 Xcode 工程。[XcodeGen](https://github.com/yonaskolb/XcodeGen) 是可选工具，仅在修改 `project.yml` 后重新生成工程时使用：
 
@@ -98,7 +98,7 @@ bash script/package_release.sh
 
 ```sh
 python3 script/fetch_test_models.py
-python3 script/package_models.py --release v1.0.2 --update-catalog
+python3 script/package_models.py --release v1.0.3 --update-catalog
 ```
 
 此操作生成 `dist/Waifu2x-models-v1.tar.xz`，并将归档信息写入清单。归档直接包含清单中的相对路径 `ONNXModels/` 与 `Engine/`，没有额外的外层目录。

@@ -1,13 +1,13 @@
 import Foundation
-import Observation
+import Combine
 
-@MainActor @Observable
-final class QueueImage: Identifiable {
+@MainActor
+final class QueueImage: ObservableObject, Identifiable {
     let id = UUID()
     let input: ImageAsset
-    var result: ProcessingResult?
-    var state: State = .ready
-    var failure: String?
+    @Published var result: ProcessingResult?
+    @Published var state: State = .ready
+    @Published var failure: String?
 
     enum State { case ready, waiting, processing, completed, failed, cancelled }
     init(input: ImageAsset) { self.input = input }

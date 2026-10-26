@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct EmptyCanvas: View {
-    let workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        let _ = locale
         GeometryReader { geometry in
             let layout = CanvasPanelLayout(size: geometry.size)
             let range = layout.exposedRange(for: workspace.activePanels)

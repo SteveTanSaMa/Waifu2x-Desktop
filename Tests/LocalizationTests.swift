@@ -1,4 +1,4 @@
-import Observation
+import Combine
 import XCTest
 @testable import Waifu2x
 
@@ -12,11 +12,8 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(L("图像增强"), "Image enhancement")
 
         let changed = expectation(description: "Existing localization reader invalidated")
-        withObservationTracking {
-            _ = L("图像增强")
-        } onChange: {
-            changed.fulfill()
-        }
+        let subscription = preferences.changes.filter { $0 == .language }.sink { _ in changed.fulfill() }
+        defer { subscription.cancel() }
         preferences.languageCode = "zh-Hans"
         XCTAssertEqual(AppLocalization.current.language, "zh-Hans")
         XCTAssertEqual(L("图像增强"), "图像增强")

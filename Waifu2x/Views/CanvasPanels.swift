@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CanvasPanels: View {
-    @Bindable var workspace: Workspace
+    @ObservedObject var workspace: Workspace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         GeometryReader { geometry in
@@ -21,18 +21,11 @@ struct CanvasPanels: View {
                     .padding(.top, CanvasPanelLayout.titlebarClearance)
                     .frame(width: frame.width, height: frame.height)
                     .background(HeaderGeometryReader(identifier: panel == .images ? "imagesPanelBounds" : "optionsPanelBounds"))
-                    .background {
-                        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(8)), isUniform: true)
-                        shape.fill(.regularMaterial)
-                            // A quiet semantic fill protects labels over bright artwork.
-                            .overlay { shape.fill(Color(nsColor: ThemeColors.panel)) }
-                    }
-                    .clipShape(ConcentricRectangle(corners: .concentric(minimum: .fixed(8)), isUniform: true))
+                    .modifier(CanvasPanelSurface())
                     .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 8)
                     .overlay(alignment: .top) {
-                        Color.clear.frame(height: CanvasPanelLayout.titlebarClearance)
-                            .contentShape(Rectangle()).gesture(WindowDragGesture())
-                            .allowsWindowActivationEvents(true).accessibilityHidden(true)
+                        WorkspaceWindowDragRegion().frame(height: CanvasPanelLayout.titlebarClearance)
+                            .accessibilityHidden(true)
                     }
                     .position(x: frame.midX, y: frame.midY)
                     .offset(x: workspace.activePanels.contains(panel) ? 0 : (panel == .images ? -frame.width - CanvasPanelLayout.inset : frame.width + CanvasPanelLayout.inset))
@@ -44,5 +37,25 @@ struct CanvasPanels: View {
         }
         .animation(reduceMotion ? nil : PanelMotion.animation, value: workspace.activePanels)
         .allowsHitTesting(!workspace.activePanels.isEmpty)
+    }
+}
+
+private struct CanvasPanelSurface: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(8)), isUniform: true)
+            content.background {
+                shape.fill(.regularMaterial)
+                    .overlay { shape.fill(Color(nsColor: ThemeColors.panel)) }
+            }
+            .clipShape(shape)
+        } else {
+            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            content.background {
+                shape.fill(.regularMaterial)
+                    .overlay { shape.fill(Color(nsColor: ThemeColors.panel)) }
+            }
+            .clipShape(shape)
+        }
     }
 }

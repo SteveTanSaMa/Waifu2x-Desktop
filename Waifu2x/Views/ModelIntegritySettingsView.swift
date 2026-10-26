@@ -2,15 +2,17 @@ import AppKit
 import SwiftUI
 
 struct ModelIntegritySettingsView: View {
-    @Bindable var checker: FileIntegrityChecker
+    @Environment(\.locale) private var locale
+    @ObservedObject var checker: FileIntegrityChecker
     let modelsAreReady: Bool
-    var maintenance: ModelMaintenance? = nil
+    @OptionalObservedObject var maintenance: ModelMaintenance? = nil
     private var isChecking: Bool { checker.status == .checking }
     private var isRepairing: Bool { maintenance?.isRepairing == true }
     private var isActive: Bool { isChecking || isRepairing }
     private var progress: Double { isRepairing ? (maintenance?.progress ?? 0) : checker.progress }
 
     var body: some View {
+        let _ = locale
         Form {
             Section {
                 LabeledContent(L("模型状态"), value: modelStatus)
@@ -201,6 +203,7 @@ struct ModelIntegritySettingsView: View {
 }
 
 private struct IntegrityScanView: View {
+    @Environment(\.locale) private var locale
     let progress: Double
     let isChecking: Bool
     let isValid: Bool
@@ -210,6 +213,7 @@ private struct IntegrityScanView: View {
     private var color: Color { hasIssues ? .orange : Color(nsColor: ThemeColors.textAccent) }
 
     var body: some View {
+        let _ = locale
         ZStack {
             Circle().fill(color.opacity(0.07))
             Circle().stroke(color.opacity(0.14), lineWidth: 1)
@@ -224,7 +228,7 @@ private struct IntegrityScanView: View {
                 Image(systemName: "mountain.2")
                     .font(.system(size: 37, weight: .ultraLight))
                     .opacity(isChecking ? 0.65 : 0.9)
-                    .symbolEffect(.pulse, isActive: isChecking && !reduceMotion)
+                    .modifier(IntegritySymbolMotion(isActive: isChecking && !reduceMotion))
                 if isChecking && !reduceMotion {
                     Rectangle()
                         .fill(LinearGradient(colors: [.clear, color, .clear], startPoint: .leading, endPoint: .trailing))

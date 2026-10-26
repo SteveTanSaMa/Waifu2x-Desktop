@@ -1,30 +1,30 @@
 import Foundation
-import Observation
+import Combine
 
-@MainActor @Observable
-final class ModelDownloadManager {
-    private(set) var status: ModelPreparationStatus = .checking
-    private(set) var progress = 0.0
-    private(set) var downloadedBytes: Int64 = 0
-    private(set) var totalBytes: Int64?
-    private(set) var completedFiles = 0
-    private(set) var totalFiles = 0
-    private(set) var currentName = ""
-    private(set) var errorMessage: String?
-    private(set) var isIncrementalRepair = false
+@MainActor
+final class ModelDownloadManager: ObservableObject {
+    @Published private(set) var status: ModelPreparationStatus = .checking
+    @Published private(set) var progress = 0.0
+    @Published private(set) var downloadedBytes: Int64 = 0
+    @Published private(set) var totalBytes: Int64?
+    @Published private(set) var completedFiles = 0
+    @Published private(set) var totalFiles = 0
+    @Published private(set) var currentName = ""
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var isIncrementalRepair = false
     private let catalog: ModelCatalog?
     private let catalogError: String?
     private let paths: ModelPaths
     private let transportFactory: ModelDownloadTransportFactory
     private let repairManifestLoader: ModelRepairManifestLoader
     // canStart depends on these tasks finishing; their mutations must invalidate the paused UI.
-    private var work: Task<Void, Never>?
-    @ObservationIgnored private var transfer: (any ModelFileTransferring)?
-    @ObservationIgnored private var currentFile: ModelCatalog.File?
-    @ObservationIgnored private var completedBytes: Int64 = 0
-    @ObservationIgnored private var currentBytes: Int64 = 0
-    private var pauseWork: Task<Void, Never>?
-    @ObservationIgnored private var operation = UUID()
+    @Published private var work: Task<Void, Never>?
+    private var transfer: (any ModelFileTransferring)?
+    private var currentFile: ModelCatalog.File?
+    private var completedBytes: Int64 = 0
+    private var currentBytes: Int64 = 0
+    @Published private var pauseWork: Task<Void, Never>?
+    private var operation = UUID()
 
     var canStart: Bool {
         guard pauseWork == nil, status != .ready else { return false }

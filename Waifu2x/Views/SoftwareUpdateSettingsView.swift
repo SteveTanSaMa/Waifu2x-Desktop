@@ -2,19 +2,21 @@ import AppKit
 import SwiftUI
 
 struct SoftwareUpdateSettingsView: View {
-    @Bindable var preferences: AppPreferences
-    @Bindable var checker: AppUpdateChecker
+    @Environment(\.locale) private var locale
+    @ObservedObject var preferences: AppPreferences
+    @ObservedObject var checker: AppUpdateChecker
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = locale
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 14) {
-                        Image(systemName: symbol)
+                        Image(systemName: PlatformSymbols.name(symbol, fallback: "exclamationmark.circle"))
                             .font(.system(size: 26, weight: .light))
                             .foregroundStyle(Color(nsColor: ThemeColors.textAccent))
-                            .symbolEffect(.rotate, isActive: checker.status == .checking && !reduceMotion)
+                            .modifier(UpdateSymbolMotion(isActive: checker.status == .checking && !reduceMotion))
                             .frame(width: 40, height: 42)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
@@ -97,10 +99,12 @@ struct SoftwareUpdateSettingsView: View {
 }
 
 private struct AppUpdateDownloadView: View {
-    @Bindable var downloader: AppUpdateDownloader
+    @Environment(\.locale) private var locale
+    @ObservedObject var downloader: AppUpdateDownloader
     let onRetry: () -> Void
 
     var body: some View {
+        let _ = locale
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.body.weight(.semibold))
             if let version = downloader.targetVersion {

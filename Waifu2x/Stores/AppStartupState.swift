@@ -1,26 +1,28 @@
 import AppKit
-import Observation
+import Combine
 
 /// Keeps launch, model preparation, and the tutorial in one window and in a
 /// strict order. Every model must pass verification before the app is unlocked.
-@MainActor @Observable
-final class AppStartupState {
+@MainActor
+final class AppStartupState: ObservableObject {
     enum Phase { case splash, models, completed, revealing, ready }
 
-    private(set) var phase: Phase = .splash
-    private(set) var splashProgress = 0.0
+    @Published private(set) var phase: Phase = .splash
+    @Published private(set) var splashProgress = 0.0
     /// The install surface is only needed when preparation actually requires
     /// a download, extraction, or user attention. Routine cache verification
     /// stays behind the splash, including its outgoing transition.
-    private(set) var showsModelPreparation = false
-    private(set) var usesReducedMotion = false
-    private(set) var revealDuration: TimeInterval
+    @Published private(set) var showsModelPreparation = false
+    @Published private(set) var usesReducedMotion = false
+    @Published private(set) var revealDuration: TimeInterval
     let models: ModelDownloadManager
-    @ObservationIgnored private var launchTask: Task<Void, Never>?
-    @ObservationIgnored private var revealTask: Task<Void, Never>?
-    @ObservationIgnored private var hasStarted = false
-    @ObservationIgnored private var isCancelled = false
-    @ObservationIgnored private var onReady: (() -> Void)?
+    private var launchTask: Task<Void, Never>?
+    private var revealTask: Task<Void, Never>?
+    private var hasStarted = false
+    private var isCancelled = false
+    private var onReady: (() -> Void)?
+    private var modelChanges: AnyCancellable?
+    private var modelStatusChanges: AnyCancellable?
     private let splashDuration: TimeInterval
     private let completionHoldDuration: TimeInterval
 
@@ -32,6 +34,12 @@ final class AppStartupState {
         self.splashDuration = max(0, splashDuration)
         self.completionHoldDuration = max(0, completionHoldDuration)
         self.revealDuration = max(0, revealDuration)
+        modelChanges = self.models.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        modelStatusChanges = self.models.$status.removeDuplicates().sink { [weak self] _ in
+            // @Published emits before storing. Inspect readiness only after the
+            // model manager has committed its state and completed this actor turn.
+            Task { @MainActor [weak self] in self?.observeModelStatus() }
+        }
     }
 
     deinit { launchTask?.cancel(); revealTask?.cancel() }
@@ -68,15 +76,9 @@ final class AppStartupState {
     }
 
     /// Readiness belongs to the launch owner, not to a view's render cycle.
-    /// Observation notifications arrive before the mutation, so re-read and
-    /// re-arm on the main actor after the manager has published its new state.
     private func observeModelStatus() {
         guard hasStarted, !isCancelled, phase == .splash || phase == .models else { return }
-        let status = withObservationTracking {
-            models.status
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in self?.observeModelStatus() }
-        }
+        let status = models.status
         switch status {
         case .checking:
             break

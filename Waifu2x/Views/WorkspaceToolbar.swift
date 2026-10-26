@@ -3,10 +3,12 @@ import SwiftUI
 /// One persistent content hierarchy owns the controls and their motion. Moving
 /// a native toolbar item between hosts would discard its presentation position.
 struct WorkspaceToolbar: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var actionsWidth: CGFloat = 150
     var body: some View {
+        let _ = locale
         GeometryReader { geometry in
             let layout = WorkspaceHeaderLayout(size: geometry.size, panels: workspace.activePanels, actionsWidth: actionsWidth)
             ZStack(alignment: .topLeading) {
@@ -22,8 +24,9 @@ struct WorkspaceToolbar: View {
                     .accessibilityIdentifier("optionsToggle")
                 WorkspaceToolbarActions(workspace: workspace)
                     .fixedSize()
-                    .background(HeaderGeometryReader(identifier: "actionsBounds"))
-                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { actionsWidth = $0 }
+                    .background(HeaderGeometryReader(identifier: "actionsBounds", onChange: { rect, _ in
+                        if actionsWidth != rect.width { actionsWidth = rect.width }
+                    }))
                     .offset(x: layout.actionsX, y: CanvasPanelLayout.toolbarCenterY - 16)
             }
             .font(.system(size: 14, weight: .medium))
@@ -44,12 +47,14 @@ struct WorkspaceHeaderLayout {
 }
 
 struct PanelToolbarToggle: View {
+    @Environment(\.locale) private var locale
     @Binding var isOn: Bool
     let symbol: String
     let title: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = locale
         // Keep the glyph outside the native Button label host. That host can
         // commit its final frame before the SwiftUI surface finishes moving.
         Button { isOn.toggle() } label: {
@@ -62,9 +67,7 @@ struct PanelToolbarToggle: View {
         .overlay {
             Image(systemName: symbol)
                 .symbolRenderingMode(.monochrome)
-                .animation(reduceMotion ? nil : .linear(duration: PanelMotion.duration)) { glyph in
-                    glyph.foregroundStyle(Color(nsColor: isOn ? ToolbarActionPalette.prominentInk : ToolbarActionPalette.neutralInk))
-                }
+                .modifier(ToolbarGlyphInk(expanded: isOn, animation: reduceMotion ? nil : .linear(duration: PanelMotion.duration)))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(HeaderGeometryReader(identifier: symbol == "slider.horizontal.3" ? "optionsSymbolBounds" : "queueSymbolBounds"))
                 .allowsHitTesting(false)
@@ -77,6 +80,20 @@ struct PanelToolbarToggle: View {
         .help(isOn ? L("收起%@", title) : L("展开%@", title))
     }
 
+}
+
+private struct ToolbarGlyphInk: ViewModifier {
+    let expanded: Bool
+    let animation: Animation?
+    private var color: Color { Color(nsColor: expanded ? ToolbarActionPalette.prominentInk : ToolbarActionPalette.neutralInk) }
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 14, *) {
+            content.animation(animation) { $0.foregroundStyle(color) }
+        } else {
+            content.foregroundStyle(color).animation(animation, value: expanded)
+        }
+    }
 }
 
 enum PanelMotion {

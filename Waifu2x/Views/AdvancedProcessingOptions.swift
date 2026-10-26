@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct AdvancedProcessingOptions: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         VStack(spacing: 22) {
             AdvancedOptionRow(L("增强模型"), symbol: "cube", detail: workspace.options.modelHint) {
                 TrailingOptionPicker(title: L("增强模型"), selection: $workspace.options.model,
@@ -41,6 +43,7 @@ struct AdvancedProcessingOptions: View {
 }
 
 private struct AdvancedOptionRow<Control: View>: View {
+    @Environment(\.locale) private var locale
     let title: String
     let symbol: String
     let detail: String
@@ -54,6 +57,7 @@ private struct AdvancedOptionRow<Control: View>: View {
     }
 
     var body: some View {
+        let _ = locale
         VStack(alignment: .leading, spacing: 9) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {

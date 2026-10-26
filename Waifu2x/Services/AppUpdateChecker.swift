@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 enum AppUpdateStatus: Equatable, Sendable {
     case idle, checking, upToDate, available, failed
@@ -8,8 +8,8 @@ enum AppUpdateStatus: Equatable, Sendable {
 typealias AppUpdateTransport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
 /// Reads public release metadata. Installing an update remains an explicit user action.
-@MainActor @Observable
-final class AppUpdateChecker {
+@MainActor
+final class AppUpdateChecker: ObservableObject {
     struct AvailableRelease: Equatable, Sendable {
         let version: String
         let url: URL
@@ -17,19 +17,20 @@ final class AppUpdateChecker {
     }
 
     let downloader: AppUpdateDownloader
+    private var downloadChanges: AnyCancellable?
 
     static let lastCheckedKey = "appUpdate.lastChecked"
     static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
 
-    private(set) var status: AppUpdateStatus = .idle
-    private(set) var availableRelease: AvailableRelease?
-    private(set) var lastChecked: Date?
-    private(set) var errorMessage: String?
-    @ObservationIgnored private let currentVersion: String
-    @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let transport: AppUpdateTransport
-    @ObservationIgnored private let now: @Sendable () -> Date
-    @ObservationIgnored private var work: Task<Void, Never>?
+    @Published private(set) var status: AppUpdateStatus = .idle
+    @Published private(set) var availableRelease: AvailableRelease?
+    @Published private(set) var lastChecked: Date?
+    @Published private(set) var errorMessage: String?
+    private let currentVersion: String
+    private let defaults: UserDefaults
+    private let transport: AppUpdateTransport
+    private let now: @Sendable () -> Date
+    private var work: Task<Void, Never>?
 
     init(currentVersion: String = AppInformation.version, defaults: UserDefaults = .standard,
          session: URLSession = .shared, transport: AppUpdateTransport? = nil,
@@ -41,6 +42,7 @@ final class AppUpdateChecker {
         self.downloader = downloader ?? AppUpdateDownloader(currentVersion: currentVersion, transport: transport)
         self.now = now
         lastChecked = defaults.object(forKey: Self.lastCheckedKey) as? Date
+        downloadChanges = self.downloader.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
     }
 
     func checkAutomaticallyIfNeeded(enabled: Bool) {

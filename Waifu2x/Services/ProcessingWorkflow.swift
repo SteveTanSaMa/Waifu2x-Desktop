@@ -1,6 +1,6 @@
 import AppKit
 import IOKit.pwr_mgt
-import Observation
+import Combine
 import UserNotifications
 
 enum CompletionNotificationAuthorization: Equatable { case notDetermined, allowed, denied }
@@ -64,10 +64,10 @@ final class ProcessingSleepLease: @unchecked Sendable {
 
 /// App-owned so an authorization request survives the settings window closing.
 /// Workspace drives inference leases and reports the final batch outcome.
-@MainActor @Observable
-final class ProcessingWorkflow {
+@MainActor
+final class ProcessingWorkflow: ObservableObject {
     private enum NotificationIssue { case denied, unavailable }
-    private var notificationIssue: NotificationIssue?
+    @Published private var notificationIssue: NotificationIssue?
     var notificationStatus: String? {
         guard let notificationIssue else { return nil }
         let key: String
@@ -77,17 +77,18 @@ final class ProcessingWorkflow {
         }
         return preferences.localizer.string(key)
     }
-    private(set) var isRequestingNotificationPermission = false
+    @Published private(set) var isRequestingNotificationPermission = false
     let preferences: AppPreferences
-    @ObservationIgnored private let notifications: (any ProcessingNotificationClient)?
-    @ObservationIgnored private let makeAssertion: @Sendable () -> (any ProcessingPowerAssertion)?
-    @ObservationIgnored private let isAppActive: @MainActor () -> Bool
-    @ObservationIgnored private var leases: [UUID: ProcessingSleepLease] = [:]
-    @ObservationIgnored private var permissionTask: Task<Void, Never>?
-    @ObservationIgnored private var deliveryTasks: [UUID: Task<Void, Never>] = [:]
-    @ObservationIgnored private var reportedBatches: Set<UUID> = []
-    @ObservationIgnored private var permissionIntent = UUID()
-    @ObservationIgnored private var isShuttingDown = false
+    private let notifications: (any ProcessingNotificationClient)?
+    private let makeAssertion: @Sendable () -> (any ProcessingPowerAssertion)?
+    private let isAppActive: @MainActor () -> Bool
+    private var leases: [UUID: ProcessingSleepLease] = [:]
+    private var permissionTask: Task<Void, Never>?
+    private var deliveryTasks: [UUID: Task<Void, Never>] = [:]
+    private var reportedBatches: Set<UUID> = []
+    private var permissionIntent = UUID()
+    private var isShuttingDown = false
+    private var preferenceChanges: AnyCancellable?
 
     nonisolated static var systemEffectsEnabled: Bool {
         let process = ProcessInfo.processInfo
@@ -208,13 +209,11 @@ final class ProcessingWorkflow {
     }
 
     private func observeSleepPreference() {
-        withObservationTracking {
-            _ = preferences.preventsSleepWhileProcessing
-        } onChange: { [weak self] in
+        preferenceChanges = preferences.changes.sink { [weak self] change in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.updateSleepLeases()
-                self.observeSleepPreference()
+                if change == .preventsSleepWhileProcessing { self.updateSleepLeases() }
+                self.objectWillChange.send()
             }
         }
     }

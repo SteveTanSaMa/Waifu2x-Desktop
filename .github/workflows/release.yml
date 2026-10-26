@@ -28,7 +28,7 @@ jobs:
   build:
     name: Test and package arm64
     runs-on: xcode-27
-    timeout-minutes: 40
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     outputs:
@@ -39,11 +39,45 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Select the runtime build Python
+        id: build-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
       - name: Verify Apple Silicon toolchain
         run: |
           test "$(uname -m)" = arm64
           sw_vers
           xcodebuild -version
+
+      - name: Keep the selected Python in Xcode build phases
+        run: printf 'WAIFU2X_BUILD_PYTHON=%s\n' '${{ steps.build-python.outputs.python-path }}' >> "$GITHUB_ENV"
+
+      - name: Prepare runtime build tools
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          for formula in cmake ninja node; do
+            command -v "$formula" >/dev/null || brew install "$formula"
+          done
+
+      - name: Identify the runtime compiler and SDK
+        id: runtime-toolchain
+        run: |
+          printf 'sdk=%s\n' "$(xcrun --show-sdk-build-version)" >> "$GITHUB_OUTPUT"
+          printf 'xcode=%s\n' "$(xcodebuild -version | tr '\n ' '--')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the macOS 13 inference runtime
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/onnxruntime-macos13/Runtime
+          key: ort13-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime-toolchain.outputs.xcode }}-${{ steps.runtime-toolchain.outputs.sdk }}-py${{ steps.build-python.outputs.python-version }}-${{ hashFiles('script/build_onnxruntime_macos13.py', 'script/runtime-dependencies.json') }}
+
+      - name: Build and verify the macOS 13 runtime
+        run: |
+          mkdir -p build
+          bash script/bootstrap.sh 2>&1 | tee build/runtime-build.log
 
       - name: Run unit tests
         run: bash script/test.sh --unit

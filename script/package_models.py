@@ -85,7 +85,7 @@ def package_repairs(root, files, version, release, output_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, help="Verified model cache root")
-    parser.add_argument("--release", default="v1.0.2", help="GitHub Release tag hosting the archive")
+    parser.add_argument("--release", default="v1.0.3", help="GitHub Release tag hosting the archive")
     parser.add_argument("--update-catalog", action="store_true", help="Record archive metadata in the catalog")
     parser.add_argument("--repair-only", action="store_true", help="Generate repair assets without repacking the full archive")
     parser.add_argument("--output-dir", type=Path, default=PROJECT / "dist")

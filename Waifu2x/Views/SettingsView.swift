@@ -2,21 +2,25 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var preferences: AppPreferences
-    @Bindable var navigation: SettingsNavigation
-    let updates: AppUpdateChecker
-    let integrity: FileIntegrityChecker
+    @Environment(\.locale) private var locale
+    @ObservedObject var preferences: AppPreferences
+    @ObservedObject var navigation: SettingsNavigation
+    @ObservedObject var updates: AppUpdateChecker
+    @ObservedObject var integrity: FileIntegrityChecker
     let modelsAreReady: Bool
     let canShowTutorial: Bool
     let onShowTutorial: () -> Void
-    var workflow: ProcessingWorkflow? = nil
-    var maintenance: ModelMaintenance? = nil
-    @Environment(\.dismissWindow) private var dismissWindow
+    @OptionalObservedObject var workflow: ProcessingWorkflow? = nil
+    @OptionalObservedObject var maintenance: ModelMaintenance? = nil
     @Environment(\.openWindow) private var openWindow
+    @State private var sidebarSelection = DeferredSettingsSelection()
 
     var body: some View {
+        let _ = locale
         HStack(spacing: 0) {
-            List(SettingsSection.allCases, selection: $navigation.selection) { section in
+            List(SettingsSection.allCases, selection: Binding(get: { navigation.selection }, set: {
+                sidebarSelection.request($0, navigation: navigation)
+            })) { section in
                 Label {
                     Text(section.title)
                         .font(.body)
@@ -50,14 +54,14 @@ struct SettingsView: View {
         .font(.body)
         .tint(.accentColor)
         .accessibilityIdentifier("appSettings")
-        .onExitCommand { dismissWindow() }
+        .onExitCommand { _ = navigation.closeIfVisible() }
     }
 
     @ViewBuilder private var detail: some View {
         switch navigation.selection ?? .general {
         case .general:
             GeneralSettingsView(preferences: preferences, workflow: workflow, canShowTutorial: canShowTutorial) {
-                dismissWindow()
+                _ = navigation.closeIfVisible()
                 onShowTutorial()
                 openWindow(id: "main")
             }
@@ -72,12 +76,14 @@ struct SettingsView: View {
 }
 
 private struct GeneralSettingsView: View {
-    @Bindable var preferences: AppPreferences
-    let workflow: ProcessingWorkflow?
+    @Environment(\.locale) private var locale
+    @ObservedObject var preferences: AppPreferences
+    @OptionalObservedObject var workflow: ProcessingWorkflow?
     let canShowTutorial: Bool
     let onShowTutorial: () -> Void
 
     var body: some View {
+        let _ = locale
         Form {
             Section {
                 Picker(L("语言"), selection: $preferences.languageCode) {
@@ -164,7 +170,8 @@ private struct GeneralSettingsView: View {
 }
 
 private struct AboutSettingsView: View {
-    let maintenance: ModelMaintenance?
+    @Environment(\.locale) private var locale
+    @OptionalObservedObject var maintenance: ModelMaintenance?
     @State private var copiedDiagnostics = false
 
     private var diagnosticStatus: DiagnosticModelStatus {
@@ -178,6 +185,7 @@ private struct AboutSettingsView: View {
     }
 
     var body: some View {
+        let _ = locale
         ScrollView {
             VStack(spacing: 12) {
                 VStack(spacing: 10) {
@@ -188,6 +196,7 @@ private struct AboutSettingsView: View {
                     Text(verbatim: "Waifu2x Desktop").font(.system(size: 22, weight: .semibold))
                     Text(L("让画面，回到清晰之中"))
                         .font(.body).foregroundStyle(.secondary)
+                        .background(HeaderGeometryReader(identifier: "settingsAboutTagline"))
                     Text(L("版本 %@ · 构建 %@", AppInformation.version, AppInformation.build))
                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         .textSelection(.enabled)
@@ -228,5 +237,24 @@ private struct AboutSettingsView: View {
         .scrollContentBackground(.hidden)
         .accessibilityIdentifier("settingsAbout")
         .background(HeaderGeometryReader(identifier: "settingsAbout"))
+    }
+}
+
+/// NSTableView can write its selection while SwiftUI is reconciling rows.
+/// Deliver only the latest user choice after that view update has completed.
+@MainActor
+private final class DeferredSettingsSelection {
+    private var operation = UUID()
+
+    func request(_ selection: SettingsSection?, navigation: SettingsNavigation) {
+        guard navigation.selection != selection else { return }
+        let previous = navigation.selection
+        let id = UUID()
+        operation = id
+        DispatchQueue.main.async { [weak self, weak navigation] in
+            guard let self, let navigation, self.operation == id,
+                  navigation.selection == previous else { return }
+            navigation.selection = selection
+        }
     }
 }

@@ -2,13 +2,15 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var configuresWindow = true
     @State private var isDropTarget = false
     @State private var canvasPresentation = CanvasPresentation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = locale
         ZStack {
             // Tint only the viewing surface; image pixels retain their original colors.
             Color(nsColor: .underPageBackgroundColor)
@@ -18,18 +20,17 @@ struct ContentView: View {
             } else {
                 EmptyCanvas(workspace: workspace)
             }
-            if workspace.isLoading || workspace.isExporting { ProgressView(workspace.isExporting ? L("正在导出图片…") : L("正在打开图片…")).padding(20).background(.regularMaterial, in: .rect(cornerRadius: 18)) }
+            if workspace.isLoading || workspace.isExporting { ProgressView(workspace.isExporting ? L("正在导出图片…") : L("正在打开图片…")).padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous)) }
             if isDropTarget {
                 Color.accentColor.opacity(0.08).allowsHitTesting(false)
                 Label(L("松开以打开图片"), systemImage: "photo.badge.plus")
-                    .padding(20).background(.regularMaterial, in: .rect(cornerRadius: 18)).allowsHitTesting(false)
+                    .padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous)).allowsHitTesting(false)
             }
         }
         .ignoresSafeArea()
         .overlay(alignment: .top) {
             // Only this clear strip moves the window; the image keeps its pan gesture.
-            Color.clear.frame(height: 46).contentShape(Rectangle())
-                .gesture(WindowDragGesture()).allowsWindowActivationEvents(true)
+            WorkspaceWindowDragRegion().frame(height: 46)
         }
         .overlay { CanvasPanels(workspace: workspace).ignoresSafeArea() }
         .overlay(alignment: .bottom) {
@@ -38,7 +39,7 @@ struct ContentView: View {
         .overlay(alignment: .topLeading) {
             if let notice = workspace.notice, workspace.activePanels.isEmpty {
                 Text(notice).font(.system(size: 11)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 14).padding(.vertical, 9).background(.regularMaterial, in: .rect(cornerRadius: 18))
+                    .padding(.horizontal, 14).padding(.vertical, 9).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .padding(.top, 62).padding(.leading, 20).allowsHitTesting(false)
             }
         }
@@ -58,8 +59,7 @@ struct ContentView: View {
         }
         .frame(minWidth: CanvasPanelLayout.minimumWindowSize.width, minHeight: CanvasPanelLayout.minimumWindowSize.height)
         .font(.system(size: 14))
-        .toolbar(removing: .title)
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .modifier(WorkspaceWindowChrome())
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTarget) { providers in
             guard !workspace.busy, !providers.isEmpty else { return false }
             Task {

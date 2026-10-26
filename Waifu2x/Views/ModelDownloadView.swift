@@ -40,12 +40,14 @@ struct ModelDownloadPresentation: Equatable {
 }
 
 struct ModelDownloadView: View {
+    @Environment(\.locale) private var locale
     let presentation: ModelDownloadPresentation
     let onRetry: () -> Void
     let onPauseResume: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = locale
         GeometryReader { geometry in
             let inset: CGFloat = geometry.size.width >= 1500 ? 56 : 40
             VStack(spacing: 0) {
@@ -88,8 +90,7 @@ struct ModelDownloadView: View {
         .padding(.leading, 116).padding(.trailing, inset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            Color.clear.contentShape(Rectangle())
-                .gesture(WindowDragGesture()).allowsWindowActivationEvents(true)
+            WorkspaceWindowDragRegion()
         }
     }
 
@@ -98,7 +99,7 @@ struct ModelDownloadView: View {
             StartupLandscapeView(progress: presentation.fraction,
                                  animates: !reduceMotion && presentation.status == .downloading)
                 .aspectRatio(1.5, contentMode: .fit)
-                .clipShape(.rect(cornerRadius: 24))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay { RoundedRectangle(cornerRadius: 24).stroke(.primary.opacity(0.07), lineWidth: 1) }
                 .shadow(color: .black.opacity(0.05), radius: 28, y: 14)
                 .accessibilityHidden(true)
@@ -280,10 +281,12 @@ struct ModelDownloadView: View {
 /// Every painted layer is a deterministic function of downloaded fraction.
 /// Time can only move a tiny water glimmer, never reveal another stroke or fill.
 private struct StartupLandscapeView: View {
+    @Environment(\.locale) private var locale
     let progress: Double
     let animates: Bool
 
     var body: some View {
+        let _ = locale
         TimelineView(.animation(minimumInterval: 1 / 24, paused: !animates)) { timeline in
             Canvas { context, size in
                 draw(in: context, size: size, shimmer: animates ? timeline.date.timeIntervalSinceReferenceDate : 0)

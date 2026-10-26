@@ -27,6 +27,7 @@
 		258885FC24ED239A987B18D7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5472021DD2A42DE111F5B7D6 /* SettingsView.swift */; };
 		26869D5C52A25D61560AD441 /* WindowControlPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B09AD3D70FB407BB2DD2959 /* WindowControlPlacement.swift */; };
 		32A3BE1F47D556BA8C12FC4E /* QueueImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E730CA1550A68EFCB7F2F79 /* QueueImage.swift */; };
+		3698119AF41FD44308E2C2D0 /* RuntimeCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23EEA11944B252E8C673D73E /* RuntimeCompatibilityTests.swift */; };
 		36A3F66FA73740B9568DC212 /* AppPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A20C7CD3C03C35DCCDF3E7 /* AppPreferencesTests.swift */; };
 		37B67DCC105D5F9D4E6CBF7B /* EmptyCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A5BE4D73F7B54F53005E0B /* EmptyCanvas.swift */; };
 		38F2123ABBED35FD17AA6C95 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4626FA1A099994C00721227D /* OnboardingView.swift */; };
@@ -48,6 +49,7 @@
 		5B48597F7A6CB27C2BACA5E5 /* ModelStorageFootprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E779F719604DBA4445DC8C /* ModelStorageFootprint.swift */; };
 		5BAA6CBB02DA5FB570DD5551 /* WindowConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2AE71C207BDA905AB47C40 /* WindowConfiguration.swift */; };
 		62283B4AA1A8B2133DF64C76 /* CanvasPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F308A7C9CDCD5C1CFC8E19CA /* CanvasPanels.swift */; };
+		640E9E15140C27351D0A0E63 /* PlatformCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74029A58D74F4BB6EBBE7E8D /* PlatformCompatibilityTests.swift */; };
 		67440523097B59800A4025BB /* WorkspaceToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07DC546FB36607E6599C7DF /* WorkspaceToolbar.swift */; };
 		67755AB13190F43229492AFB /* InferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68082942AFE5F322B8197F3F /* InferenceTests.swift */; };
 		67933CFA7B015AB5ED844599 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882CB4FD6C3451BA52BA37C6 /* ContentView.swift */; };
@@ -63,6 +65,7 @@
 		811FF4710BD598D18F3C4288 /* ModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325228CDFE91BE3B2BC5ABFF /* ModelStore.swift */; };
 		8228301F40812619C87C9CEE /* HeaderGeometryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FDB98C38EC0293B1DC1476F /* HeaderGeometryReader.swift */; };
 		828205C215501F6C114A9043 /* ModelMaintenanceViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD65BF30BCAA1AE431AE198 /* ModelMaintenanceViewTests.swift */; };
+		86BB1323E369EAFD324555C9 /* OptionalObservedObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3843E19E80860D3F11DDAB03 /* OptionalObservedObject.swift */; };
 		87BD5993A9AE8ACFB274A6F1 /* AppInformation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71212A928ED7D17D8F1B7B03 /* AppInformation.swift */; };
 		89002512879B30F50CB0B77A /* ThemeColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E714B4EE318670B70D36EC8F /* ThemeColors.swift */; };
 		8985D63E6275D21C8F101D04 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97637AF3BC6BB3C499623609 /* ModelCatalog.swift */; };
@@ -93,10 +96,12 @@
 		C3A748BAEB832AA530529714 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D66C5BB939112B01D643F0 /* LocalizationTests.swift */; };
 		C3BD21432808BB1F4926951B /* ModelCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = 5E781E1B5E91314CC93BFD52 /* ModelCatalog.json */; };
 		C40CCAFF6BF1F2DF7AD59379 /* libarchive.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 440F54D064E4C290904C6B10 /* libarchive.tbd */; };
+		C7EB1B126832B6035B5A2189 /* PlatformViewCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076F949C2DDEA1E98C92268 /* PlatformViewCompatibility.swift */; };
 		CA7E850E5C5B2595272EC790 /* ProcessingOptionHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E3659C781F97DDE60035C2 /* ProcessingOptionHints.swift */; };
 		D45A9A805EA1ABD3F59A45AF /* SoftwareUpdateSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4403D997F0711F366D08CE57 /* SoftwareUpdateSettingsView.swift */; };
 		D8CAED81E79E0AE43608054C /* libonnxruntime.1.23.2.dylib in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DAD2CBD5213AB6128F2677C7 /* TileProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0E63217054274FADE25BEE /* TileProgress.swift */; };
+		DED8B239DE2917068286D0B0 /* ObservableGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2CF5DBCB084ED540CAD7B25 /* ObservableGraphTests.swift */; };
 		DF5C5B244C8F1B7A15B9C774 /* ModelIntegritySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B022897FF640E803FB0C19 /* ModelIntegritySettingsView.swift */; };
 		E042CF9FDD3DA9954E1C95CE /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 42253DC2FC2F7F7AB7C4CB30 /* InfoPlist.strings */; };
 		E21CD79163843A03B7663BF7 /* ModelPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3340719864937185931B54D5 /* ModelPaths.swift */; };
@@ -150,6 +155,7 @@
 		1F58C76380E80AA686D3C73E /* WorkspaceRootTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRootTests.swift; sourceTree = "<group>"; };
 		1F9165A54AA9A669FEC5E95E /* ONNXTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ONNXTests.swift; sourceTree = "<group>"; };
 		2342B3C212F80C3BD6C98E56 /* CanvasPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPanel.swift; sourceTree = "<group>"; };
+		23EEA11944B252E8C673D73E /* RuntimeCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCompatibilityTests.swift; sourceTree = "<group>"; };
 		28723F52440C501779E9F772 /* SystemArchive.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SystemArchive.h; sourceTree = "<group>"; };
 		2B09AD3D70FB407BB2DD2959 /* WindowControlPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowControlPlacement.swift; sourceTree = "<group>"; };
 		30E164A76FCFC8997E442C99 /* ModelFileDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFileDownload.swift; sourceTree = "<group>"; };
@@ -157,6 +163,7 @@
 		3340719864937185931B54D5 /* ModelPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPaths.swift; sourceTree = "<group>"; };
 		34E779F719604DBA4445DC8C /* ModelStorageFootprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStorageFootprint.swift; sourceTree = "<group>"; };
 		354040A8A1F6AB69D3D605CD /* AppUpdateDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateDownloader.swift; sourceTree = "<group>"; };
+		3843E19E80860D3F11DDAB03 /* OptionalObservedObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionalObservedObject.swift; sourceTree = "<group>"; };
 		3B103C354AF6904A0BAEA578 /* CanvasLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasLayoutTests.swift; sourceTree = "<group>"; };
 		3BB61BED6A4011FED362C635 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		3ED1400AF2B74370E388513B /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -195,6 +202,7 @@
 		71212A928ED7D17D8F1B7B03 /* AppInformation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInformation.swift; sourceTree = "<group>"; };
 		71E85B6A7DC91F4D43D1E987 /* ONNXBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ONNXBridge.mm; sourceTree = "<group>"; };
 		72CA2F5E67C5E4F8DBCA458F /* OnboardingIllustration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingIllustration.swift; sourceTree = "<group>"; };
+		74029A58D74F4BB6EBBE7E8D /* PlatformCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformCompatibilityTests.swift; sourceTree = "<group>"; };
 		759BE528B7627843C24F2CC6 /* ModelMaintenanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMaintenanceTests.swift; sourceTree = "<group>"; };
 		77B91E23039514AFC6B974D6 /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
 		7F3614E2BC136F04202C8E1D /* AppDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsTests.swift; sourceTree = "<group>"; };
@@ -217,6 +225,7 @@
 		ADC4655578FDD4296A55C15D /* SampleArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleArtwork.swift; sourceTree = "<group>"; };
 		AF64BD0B04B0BA25844EEE5A /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B2C1FD66D87D8DD1DEEF5AB8 /* ModelMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMaintenance.swift; sourceTree = "<group>"; };
+		B2CF5DBCB084ED540CAD7B25 /* ObservableGraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservableGraphTests.swift; sourceTree = "<group>"; };
 		B4E3659C781F97DDE60035C2 /* ProcessingOptionHints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingOptionHints.swift; sourceTree = "<group>"; };
 		B5A20C7CD3C03C35DCCDF3E7 /* AppPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesTests.swift; sourceTree = "<group>"; };
 		B5A974420A7AD065E48BE9CF /* LaunchSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplashView.swift; sourceTree = "<group>"; };
@@ -233,6 +242,7 @@
 		DACC9C88E9406F59EDAF3365 /* NcnnEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NcnnEngine.swift; sourceTree = "<group>"; };
 		DF7B02D2B6A82D0433053D02 /* AppStartupState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStartupState.swift; sourceTree = "<group>"; };
 		DF7B54DD38C7611E9F017776 /* ONNXCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ONNXCompositor.swift; sourceTree = "<group>"; };
+		E076F949C2DDEA1E98C92268 /* PlatformViewCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewCompatibility.swift; sourceTree = "<group>"; };
 		E07DC546FB36607E6599C7DF /* WorkspaceToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceToolbar.swift; sourceTree = "<group>"; };
 		E24AFFA1B473927B7F8A52A8 /* AppUpdateCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCatalog.swift; sourceTree = "<group>"; };
 		E3062A0749CB97EE5698B73B /* Waifu2xTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Waifu2xTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -249,7 +259,7 @@
 		F2F3128736B91A8A5AC13B6D /* ModelArchiveExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelArchiveExtractor.swift; sourceTree = "<group>"; };
 		F308A7C9CDCD5C1CFC8E19CA /* CanvasPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPanels.swift; sourceTree = "<group>"; };
 		F75155918356FB1DD2E2C507 /* ProcessingOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingOptionsPanel.swift; sourceTree = "<group>"; };
-		F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libonnxruntime.1.23.2.dylib; path = Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib; sourceTree = "<group>"; };
+		F98623D78B75FC8761FB49DB /* libonnxruntime.1.23.2.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libonnxruntime.1.23.2.dylib; path = "build/onnxruntime-macos13/Runtime/lib/libonnxruntime.1.23.2.dylib"; sourceTree = "<group>"; };
 		FC0E63217054274FADE25BEE /* TileProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileProgress.swift; sourceTree = "<group>"; };
 		FEA19B60F7314F9EA6C4ADA8 /* ProcessingWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingWorkflow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -302,6 +312,8 @@
 				A43B523FD6F6DE9315438598 /* Localization.swift */,
 				46D675879871AAFEBE8A9309 /* MainWindowReference.swift */,
 				64770CA3AD654ED52AF18EB3 /* OnboardingDemoTimeline.swift */,
+				3843E19E80860D3F11DDAB03 /* OptionalObservedObject.swift */,
+				E076F949C2DDEA1E98C92268 /* PlatformViewCompatibility.swift */,
 				ADC4655578FDD4296A55C15D /* SampleArtwork.swift */,
 				65E4CF0AC67182CA58676DDE /* SettingsWindowBehavior.swift */,
 				E714B4EE318670B70D36EC8F /* ThemeColors.swift */,
@@ -358,10 +370,13 @@
 				759BE528B7627843C24F2CC6 /* ModelMaintenanceTests.swift */,
 				7FD65BF30BCAA1AE431AE198 /* ModelMaintenanceViewTests.swift */,
 				EF1ED3D167CDE044B3F7D719 /* ModelRepairTests.swift */,
+				B2CF5DBCB084ED540CAD7B25 /* ObservableGraphTests.swift */,
 				9D558C2802C51B4FC0A22B00 /* OnboardingDemoTimelineTests.swift */,
 				93AA0A69B349417AA3264E48 /* OnboardingTests.swift */,
 				1F9165A54AA9A669FEC5E95E /* ONNXTests.swift */,
+				74029A58D74F4BB6EBBE7E8D /* PlatformCompatibilityTests.swift */,
 				40B3CDAA7B1108F2AFA3AEBC /* ProcessingWorkflowTests.swift */,
+				23EEA11944B252E8C673D73E /* RuntimeCompatibilityTests.swift */,
 				50BCBDE7A99DA8B4252D9A3F /* SettingsViewTests.swift */,
 				A0454D069C76CA40263B0E76 /* TestModelFixtures.swift */,
 				1F58C76380E80AA686D3C73E /* WorkspaceRootTests.swift */,
@@ -605,8 +620,8 @@
 			);
 			outputPaths = (
 				"$(SRCROOT)/Waifu2x/Resources/Runtime/Engine",
-				"$(SRCROOT)/Vendor/onnxruntime/lib/libonnxruntime.1.23.2.dylib",
-				"$(SRCROOT)/Vendor/onnxruntime/include",
+				"$(SRCROOT)/build/onnxruntime-macos13/Runtime/lib/libonnxruntime.1.23.2.dylib",
+				"$(SRCROOT)/build/onnxruntime-macos13/Runtime/include",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -653,9 +668,12 @@
 				828205C215501F6C114A9043 /* ModelMaintenanceViewTests.swift in Sources */,
 				8A525703BD061A1BE6C78C50 /* ModelRepairTests.swift in Sources */,
 				9EE497B39A6EAAC05A6E9A4D /* ONNXTests.swift in Sources */,
+				DED8B239DE2917068286D0B0 /* ObservableGraphTests.swift in Sources */,
 				1F2710402B167B8EBE2186C6 /* OnboardingDemoTimelineTests.swift in Sources */,
 				9CE0DCF04EFA05AB5F9E0912 /* OnboardingTests.swift in Sources */,
+				640E9E15140C27351D0A0E63 /* PlatformCompatibilityTests.swift in Sources */,
 				B898058F92FC5155D1497E60 /* ProcessingWorkflowTests.swift in Sources */,
+				3698119AF41FD44308E2C2D0 /* RuntimeCompatibilityTests.swift in Sources */,
 				9E980390675639DD0DCB5012 /* SettingsViewTests.swift in Sources */,
 				B6CA2E27C20537D08DFBAB6F /* TestModelFixtures.swift in Sources */,
 				B75BF39A8C5F3C776870064C /* WorkspaceRootTests.swift in Sources */,
@@ -716,6 +734,8 @@
 				EEFD3FBA08DD1F8D2D3225E0 /* OnboardingState.swift in Sources */,
 				38F2123ABBED35FD17AA6C95 /* OnboardingView.swift in Sources */,
 				994F7488857799BE26E14CF1 /* OnboardingWorkspaceDiagram.swift in Sources */,
+				86BB1323E369EAFD324555C9 /* OptionalObservedObject.swift in Sources */,
+				C7EB1B126832B6035B5A2189 /* PlatformViewCompatibility.swift in Sources */,
 				06B0897AA6C9E97AF766CE1B /* PreferencesCommands.swift in Sources */,
 				CA7E850E5C5B2595272EC790 /* ProcessingOptionHints.swift in Sources */,
 				3EAA26B6A0CC16ED568C5D7B /* ProcessingOptions.swift in Sources */,
@@ -828,7 +848,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -853,6 +873,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2xTests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Waifu2x.app/Contents/MacOS/Waifu2x";
@@ -909,9 +930,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -929,13 +951,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"Vendor/onnxruntime/lib\"",
+					"\"build/onnxruntime-macos13/Runtime/lib\"",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = "$(SRCROOT)/Vendor/onnxruntime/include";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/build/onnxruntime-macos13/Runtime/include";
 				INFOPLIST_FILE = Waifu2x/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Waifu2x;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -945,9 +967,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/Vendor/onnxruntime/lib",
+					"$(SRCROOT)/build/onnxruntime-macos13/Runtime/lib",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2x;
 				PRODUCT_NAME = Waifu2x;
 				SDKROOT = macosx;
@@ -962,13 +984,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"Vendor/onnxruntime/lib\"",
+					"\"build/onnxruntime-macos13/Runtime/lib\"",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = "$(SRCROOT)/Vendor/onnxruntime/include";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/build/onnxruntime-macos13/Runtime/include";
 				INFOPLIST_FILE = Waifu2x/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Waifu2x;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -978,9 +1000,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/Vendor/onnxruntime/lib",
+					"$(SRCROOT)/build/onnxruntime-macos13/Runtime/lib",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2x;
 				PRODUCT_NAME = Waifu2x;
 				SDKROOT = macosx;
@@ -999,6 +1021,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.stevetan.Waifu2xTests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Waifu2x.app/Contents/MacOS/Waifu2x";

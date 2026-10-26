@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 enum FileIntegrityStatus: Equatable, Sendable {
     case idle, checking, valid, issues, cancelled, failed
@@ -12,8 +12,8 @@ enum ModelIntegrityVerification: Equatable, Sendable {
 typealias ApplicationSignatureChecking = @Sendable (URL) throws -> Bool
 typealias ModelIntegrityScanning = @Sendable (ModelStore, @Sendable (Int, String, ModelStore.IntegrityFinding?) -> Void) throws -> [ModelStore.IntegrityFinding]
 
-@MainActor @Observable
-final class FileIntegrityChecker {
+@MainActor
+final class FileIntegrityChecker: ObservableObject {
     struct Issue: Identifiable, Equatable, Sendable {
         enum Kind: Equatable, Sendable { case application, model }
         let path: String
@@ -22,25 +22,25 @@ final class FileIntegrityChecker {
         var id: String { "\(kind):\(path)" }
     }
 
-    private(set) var status: FileIntegrityStatus = .idle
-    private(set) var progress = 0.0
-    private(set) var checkedFiles = 0
-    private(set) var totalFiles = 0
-    private(set) var currentName = ""
-    private(set) var issues = [Issue]()
-    private(set) var lastChecked: Date?
-    private(set) var errorMessage: String?
+    @Published private(set) var status: FileIntegrityStatus = .idle
+    @Published private(set) var progress = 0.0
+    @Published private(set) var checkedFiles = 0
+    @Published private(set) var totalFiles = 0
+    @Published private(set) var currentName = ""
+    @Published private(set) var issues = [Issue]()
+    @Published private(set) var lastChecked: Date?
+    @Published private(set) var errorMessage: String?
     // A cancelled/failed scan cannot erase previously discovered model damage.
-    private(set) var modelVerification: ModelIntegrityVerification = .unknown
-    private var work: Task<Void, Never>?
-    @ObservationIgnored private let catalog: ModelCatalog?
-    @ObservationIgnored private let catalogError: String?
-    @ObservationIgnored private let paths: ModelPaths
-    @ObservationIgnored private let bundleURL: URL
-    @ObservationIgnored var canCheck: @MainActor () -> Bool
-    @ObservationIgnored private let signatureChecker: ApplicationSignatureChecking
-    @ObservationIgnored private let modelScanner: ModelIntegrityScanning
-    @ObservationIgnored private var operation = UUID()
+    @Published private(set) var modelVerification: ModelIntegrityVerification = .unknown
+    @Published private var work: Task<Void, Never>?
+    private let catalog: ModelCatalog?
+    private let catalogError: String?
+    private let paths: ModelPaths
+    private let bundleURL: URL
+    var canCheck: @MainActor () -> Bool
+    private let signatureChecker: ApplicationSignatureChecking
+    private let modelScanner: ModelIntegrityScanning
+    private var operation = UUID()
 
     var canStart: Bool { work == nil && canCheck() }
 

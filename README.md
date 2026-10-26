@@ -4,11 +4,11 @@
 
 A native macOS app for image upscaling and denoising, with on-device processing and a quiet, turquoise workspace.
 
-**Version 1.0.2 · macOS 26 or later**
+**Version 1.0.3 · macOS 13.0 or later**
 
 ## Download and install
 
-Download the **Apple Silicon (arm64)** DMG or ZIP from [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest). Open the DMG and drag **Waifu2x** into **Applications**, or extract the ZIP and move the app there. These packages require macOS 26 or later and do not support Intel Macs. Verify downloads with the included `SHA256SUMS` file if needed.
+Download the **Apple Silicon (arm64)** DMG or ZIP from [Releases](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/latest). Open the DMG and drag **Waifu2x** into **Applications**, or extract the ZIP and move the app there. These packages require macOS 13.0 or later and do not support Intel Macs. Verify downloads with the included `SHA256SUMS` file if needed.
 
 The app uses a certificate-free ad-hoc signature and is **not Developer ID signed or notarized by Apple**. If macOS blocks the first launch and you trust the download, try opening the app, then choose **System Settings → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/102445).
 
@@ -36,7 +36,7 @@ After verification, the completed landscape gently fades into the tutorial. User
 
 On later launches, installed models are verified behind the splash before entering the workspace. The model preparation page appears only when files need downloading or extraction, or preparation needs attention.
 
-Model weights are downloaded on demand rather than included in the app. Version 1.0.2 downloads one compressed [`Waifu2x-models-v1.tar.xz` archive](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.2/Waifu2x-models-v1.tar.xz) from this project's GitHub Release. The download is **839,373,332 bytes (about 839 MB)**, about **23.4% smaller** than the unpacked model data. It expands to **99 model and helper files**, totaling **1,095,327,613 bytes (about 1.1 GB)**. The download page shows real progress, supports pause/resume and retry, and reveals its landscape illustration as the download advances. The archive and its extracted files are checked against their expected sizes and SHA-256 hashes before use.
+Model weights are downloaded on demand rather than included in the app. Version 1.0.3 downloads one compressed [`Waifu2x-models-v1.tar.xz` archive](https://github.com/SteveTanSaMa/Waifu2x-Desktop/releases/download/v1.0.3/Waifu2x-models-v1.tar.xz) from this project's GitHub Release. The download is **839,373,332 bytes (about 839 MB)**, about **23.4% smaller** than the unpacked model data. It expands to **99 model and helper files**, totaling **1,095,327,613 bytes (about 1.1 GB)**. The download page shows real progress, supports pause/resume and retry, and reveals its landscape illustration as the download advances. The archive and its extracted files are checked against their expected sizes and SHA-256 hashes before use.
 
 The archive preserves the upstream model files from:
 
@@ -59,9 +59,9 @@ After downloading, choose **Show Update in Finder**, quit Waifu2x, and replace t
 
 Requirements:
 
-- macOS 26 or later
-- Xcode 27 or later, with its developer tools selected
-- Python 3
+- A build host supported by Xcode 27 or later, with its developer tools selected
+- Deployment target: macOS 13.0 or later
+- Python 3.10 or later, CMake, Ninja, Node.js, npm, and Git
 - Network access for the initial runtime bootstrap and model download
 
 ```sh
@@ -76,7 +76,7 @@ In Xcode, choose the **Waifu2x** scheme and **My Mac**, then run the app. The bu
 ./script/build_and_run.sh
 ```
 
-The build calls `bootstrap.sh` to download the pinned ONNX Runtime **1.23.2** universal macOS library and headers, plus the **20250915** ncnn inference helper. It verifies the archives and prepares the ignored `Vendor/` and runtime directories, reusing verified local dependencies on subsequent builds. You can also run `./script/bootstrap.sh` separately. It does not install the app’s model weights. Dependency versions and checksums are in [runtime-dependencies.json](script/runtime-dependencies.json).
+The build calls `bootstrap.sh` to download the pinned ONNX Runtime **1.23.2** universal macOS library and headers, plus the **20250915** ncnn inference helper. It verifies the archives and prepares the ignored `Vendor/` and runtime directories, reusing verified local dependencies on subsequent builds. You can also run `./script/bootstrap.sh` separately. For macOS 13.0–13.3, the build recompiles the same ONNX Runtime release with CPU, CoreML, and WebGPU; the upstream binary requires macOS 13.4. The first source build takes longer, and subsequent builds reuse a verified cache. See [macOS 13 runtime build details](script/onnxruntime-macos13.md). It does not install the app’s model weights. Dependency versions and checksums are in [runtime-dependencies.json](script/runtime-dependencies.json).
 
 The Xcode project is committed. [XcodeGen](https://github.com/yonaskolb/XcodeGen) is optional and is only needed when regenerating it after editing `project.yml`:
 
@@ -98,7 +98,7 @@ Prepare the separate model archive from a verified model cache:
 
 ```sh
 python3 script/fetch_test_models.py
-python3 script/package_models.py --release v1.0.2 --update-catalog
+python3 script/package_models.py --release v1.0.3 --update-catalog
 ```
 
 This creates `dist/Waifu2x-models-v1.tar.xz` and records its metadata in the catalog. The archive contains the catalog's relative `ONNXModels/` and `Engine/` paths directly, without an outer directory.

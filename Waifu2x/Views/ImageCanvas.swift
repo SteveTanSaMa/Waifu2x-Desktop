@@ -3,7 +3,7 @@ import AppKit
 
 /// AppKit is limited to precise pixel rendering and desktop scroll / magnify input.
 struct ImageCanvas: NSViewRepresentable {
-    let workspace: Workspace
+    @ObservedObject var workspace: Workspace
     var presentation: CanvasPresentation? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled

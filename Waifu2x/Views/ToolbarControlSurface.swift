@@ -6,14 +6,18 @@ struct ToolbarControlSurface: ViewModifier {
     var prominent = false
     var appearanceAnimation: Animation? = nil
     @Environment(\.isEnabled) private var isEnabled
+    private var highlightOpacity: Double { expanded || prominent ? (isEnabled ? 1 : 0.35) : 0 }
     func body(content: Content) -> some View {
         content.background {
             Capsule().fill(.regularMaterial)
                 .overlay {
-                    Capsule().fill(Color.accentColor)
-                        .animation(appearanceAnimation) { fill in
-                            fill.opacity(expanded || prominent ? (isEnabled ? 1 : 0.35) : 0)
-                        }
+                    if #available(macOS 14, *) {
+                        Capsule().fill(Color.accentColor)
+                            .animation(appearanceAnimation) { $0.opacity(highlightOpacity) }
+                    } else {
+                        Capsule().fill(Color.accentColor).opacity(highlightOpacity)
+                            .animation(appearanceAnimation, value: highlightOpacity)
+                    }
                 }
         }
     }

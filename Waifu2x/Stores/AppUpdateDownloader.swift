@@ -1,31 +1,31 @@
 import Foundation
-import Observation
+import Combine
 
 enum AppUpdateDownloadStatus: Equatable, Sendable {
     case idle, preparing, downloading, verifying, ready, cancelled, failed
 }
 
-@MainActor @Observable
-final class AppUpdateDownloader {
-    private(set) var status: AppUpdateDownloadStatus = .idle
-    private(set) var downloadedBytes: Int64 = 0
-    private(set) var totalBytes: Int64 = 0
-    private(set) var usesDelta = false
-    private(set) var fellBackToFull = false
-    private(set) var stagedApplication: URL?
-    private(set) var targetVersion: String?
-    private(set) var targetBuild: String?
-    private(set) var errorMessage: String?
-    private var work: Task<Void, Never>?
-    @ObservationIgnored private var transfer: (any ModelFileTransferring)?
-    @ObservationIgnored private let currentVersion: String
-    @ObservationIgnored private let currentBuild: String
-    @ObservationIgnored private let installedApplication: URL
-    @ObservationIgnored private let cacheDirectory: URL
-    @ObservationIgnored private let transport: AppUpdateTransport
-    @ObservationIgnored private let transferFactory: ModelDownloadTransportFactory
-    @ObservationIgnored private let signatureChecker: ApplicationSignatureChecking
-    @ObservationIgnored private var operation = UUID()
+@MainActor
+final class AppUpdateDownloader: ObservableObject {
+    @Published private(set) var status: AppUpdateDownloadStatus = .idle
+    @Published private(set) var downloadedBytes: Int64 = 0
+    @Published private(set) var totalBytes: Int64 = 0
+    @Published private(set) var usesDelta = false
+    @Published private(set) var fellBackToFull = false
+    @Published private(set) var stagedApplication: URL?
+    @Published private(set) var targetVersion: String?
+    @Published private(set) var targetBuild: String?
+    @Published private(set) var errorMessage: String?
+    @Published private var work: Task<Void, Never>?
+    private var transfer: (any ModelFileTransferring)?
+    private let currentVersion: String
+    private let currentBuild: String
+    private let installedApplication: URL
+    private let cacheDirectory: URL
+    private let transport: AppUpdateTransport
+    private let transferFactory: ModelDownloadTransportFactory
+    private let signatureChecker: ApplicationSignatureChecking
+    private var operation = UUID()
 
     var isBusy: Bool { status == .preparing || status == .downloading || status == .verifying }
     var canStart: Bool { work == nil }

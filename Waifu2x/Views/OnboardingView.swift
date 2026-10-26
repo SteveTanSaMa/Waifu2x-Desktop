@@ -1,15 +1,21 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @Bindable var onboarding: OnboardingState
+    @Environment(\.locale) private var locale
+    @ObservedObject var onboarding: OnboardingState
     var animates = true
     let onFinish: (_ opensSample: Bool) -> Void
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     private var reduceMotion: Bool { systemReduceMotion || !animates }
-    private var motion: Animation? { reduceMotion ? nil : .smooth(duration: 0.4) }
+    private var motion: Animation? {
+        guard !reduceMotion else { return nil }
+        if #available(macOS 14, *) { return .smooth(duration: 0.4) }
+        return .easeInOut(duration: 0.4)
+    }
 
     var body: some View {
+        let _ = locale
         GeometryReader { geometry in
             let inset: CGFloat = geometry.size.width >= 1500 ? 56 : 40
             VStack(spacing: 0) {
@@ -46,7 +52,7 @@ struct OnboardingView: View {
     private func header(inset: CGFloat) -> some View {
         HStack(spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles.rectangle.stack")
+                Image(systemName: PlatformSymbols.name("sparkles.rectangle.stack", fallback: "rectangle.stack"))
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color(nsColor: ThemeColors.textAccent))
                 Text(verbatim: "Waifu2x").font(.system(size: 16, weight: .semibold))
@@ -67,8 +73,7 @@ struct OnboardingView: View {
         .padding(.leading, 116).padding(.trailing, inset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            Color.clear.contentShape(Rectangle())
-                .gesture(WindowDragGesture()).allowsWindowActivationEvents(true)
+            WorkspaceWindowDragRegion()
         }
     }
 

@@ -3,10 +3,10 @@ import SwiftUI
 /// Startup and the tutorial occupy the main window while settings has its own
 /// scene. The workspace stays inert until launch verification has completed.
 struct WorkspaceRootView: View {
-    let workspace: Workspace
-    @Bindable var onboarding: OnboardingState
+    @ObservedObject var workspace: Workspace
+    @ObservedObject var onboarding: OnboardingState
     var animates = true
-    var startup: AppStartupState? = nil
+    @OptionalObservedObject var startup: AppStartupState? = nil
     @State private var opensSampleAfterTutorial = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
@@ -51,11 +51,10 @@ struct WorkspaceRootView: View {
         .frame(minWidth: CanvasPanelLayout.minimumWindowSize.width,
                minHeight: CanvasPanelLayout.minimumWindowSize.height)
         .background(WindowConfiguration(onEscape: handleEscape))
-        .toolbar(removing: .title)
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .modifier(WorkspaceWindowChrome())
         .onExitCommand { _ = handleEscape() }
-        .onChange(of: workspace.busy) { _, _ in openRequestedSampleWhenReady() }
-        .onChange(of: startup?.isReady) { _, _ in openRequestedSampleWhenReady() }
+        .onChange(of: workspace.busy) { _ in openRequestedSampleWhenReady() }
+        .onChange(of: startup?.isReady) { _ in openRequestedSampleWhenReady() }
     }
 
     private var destination: some View {

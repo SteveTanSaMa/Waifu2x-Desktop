@@ -3,16 +3,16 @@ import SwiftUI
 @main
 struct Waifu2xApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var workspace: Workspace
+    @StateObject private var workspace: Workspace
     @State private var didConfigure = false
-    @State private var onboarding = OnboardingState()
-    @State private var startup: AppStartupState
-    @State private var preferences: AppPreferences
-    @State private var workflow: ProcessingWorkflow
-    @State private var maintenance: ModelMaintenance
-    @State private var settingsNavigation = SettingsNavigation()
-    @State private var updates = AppUpdateChecker()
-    @State private var integrity: FileIntegrityChecker
+    @StateObject private var onboarding = OnboardingState()
+    @StateObject private var startup: AppStartupState
+    @StateObject private var preferences: AppPreferences
+    @StateObject private var workflow: ProcessingWorkflow
+    @StateObject private var maintenance: ModelMaintenance
+    @StateObject private var settingsNavigation = SettingsNavigation()
+    @StateObject private var updates = AppUpdateChecker()
+    @StateObject private var integrity: FileIntegrityChecker
     private var blocksWorkspace: Bool { onboarding.isPresented || !startup.isReady }
     private var blocksProcessing: Bool { blocksWorkspace || !maintenance.modelsCanBeUsed }
     private var canShowTutorial: Bool { !workspace.busy && !onboarding.isPresented && startup.isReady }
@@ -29,12 +29,14 @@ struct Waifu2xApp: App {
             workspace?.isProcessing == false && maintenance?.isRepairing != true
         }
         workspace.canStartProcessing = { [weak maintenance] in maintenance?.modelsCanBeUsed == true }
-        _preferences = State(initialValue: preferences)
-        _workflow = State(initialValue: workflow)
-        _workspace = State(initialValue: workspace)
-        _startup = State(initialValue: startup)
-        _integrity = State(initialValue: integrity)
-        _maintenance = State(initialValue: maintenance)
+        workspace.observeProcessingAvailability(maintenance.objectWillChange)
+        maintenance.observeRepairAvailability(workspace)
+        _preferences = StateObject(wrappedValue: preferences)
+        _workflow = StateObject(wrappedValue: workflow)
+        _workspace = StateObject(wrappedValue: workspace)
+        _startup = StateObject(wrappedValue: startup)
+        _integrity = StateObject(wrappedValue: integrity)
+        _maintenance = StateObject(wrappedValue: maintenance)
     }
 
     var body: some Scene {
@@ -76,7 +78,6 @@ struct Waifu2xApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: CanvasPanelLayout.minimumWindowSize.width, height: 760)
-        .defaultLaunchBehavior(.presented)
         .commands {
             PreferencesCommands(navigation: settingsNavigation, updates: updates, integrity: integrity,
                                 modelsAreReady: startup.isReady && !maintenance.isRepairing, canShowTutorial: canShowTutorial,

@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct WorkspaceToolbarActions: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     private var exportInk: Color { Color(nsColor: workspace.showsOptions ? ToolbarActionPalette.prominentInk : ToolbarActionPalette.neutralInk) }
     var body: some View {
+        let _ = locale
         HStack(spacing: 8) {
             if workspace.images.count > 1 {
                 Menu {
@@ -42,8 +44,10 @@ private struct ToolbarMenuSurface: ViewModifier {
 }
 
 struct EnhanceButton: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         Button(action: workspace.process) {
             Label(L("增强"), systemImage: "sparkles")
                 .font(.system(size: 16, weight: .semibold))

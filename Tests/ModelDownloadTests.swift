@@ -1,6 +1,6 @@
 import XCTest
 import Foundation
-import Observation
+import Combine
 @testable import Waifu2x
 
 final class ModelDownloadTests: XCTestCase {
@@ -369,7 +369,9 @@ final class ModelDownloadTests: XCTestCase {
         manager.start(); await waitUntil { manager.downloadedBytes == archive.bytes / 2 }
         manager.togglePause()
         let change = ObservationChange()
-        withObservationTracking { XCTAssertFalse(manager.canStart) } onChange: { change.record() }
+        XCTAssertFalse(manager.canStart)
+        let subscription = manager.objectWillChange.sink { change.record() }
+        defer { subscription.cancel() }
         await manager.pauseForTermination()
         XCTAssertTrue(manager.canStart)
         XCTAssertTrue(change.wasRecorded, "Completing resume-data persistence must enable the observed Resume action")

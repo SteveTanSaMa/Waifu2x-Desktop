@@ -11,12 +11,14 @@ if [[ $# -ne 0 ]]; then
     exit 2
 fi
 
+WAIFU2X_BUILD_PYTHON="$(bash "$PROJECT_DIR/script/build_onnxruntime_macos13.sh" --print-python)"
+export WAIFU2X_BUILD_PYTHON
 bash "$PROJECT_DIR/script/bootstrap.sh"
 mkdir -p "$PROJECT_DIR/build" "$PROJECT_DIR/dist"
 xcodebuild -project "$PROJECT_DIR/Waifu2x.xcodeproj" -scheme Waifu2x \
     -configuration Release -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$PROJECT_DIR/build/release" \
-    ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+    "WAIFU2X_BUILD_PYTHON=$WAIFU2X_BUILD_PYTHON" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
     CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
     ENABLE_HARDENED_RUNTIME=NO build 2>&1 | tee "$PROJECT_DIR/build/release.log"
 
@@ -63,6 +65,8 @@ if /usr/bin/find "$APP" -type f \( -name '*.onnx' -o -name '*.bin' -o -name '*.p
     exit 1
 fi
 
+"$WAIFU2X_BUILD_PYTHON" "$PROJECT_DIR/script/check_macos_compatibility.py" --app "$APP" --minimum-os 13.0 --architecture arm64
+
 /usr/bin/codesign --force --sign - --timestamp=none "$APP"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 
@@ -80,8 +84,8 @@ UPDATE_ARGUMENTS=(--app "$APP" --full-archive "$ZIP_PATH" --release "v$VERSION" 
 if [[ -n "${APP_UPDATE_BASE_ZIP:-}" ]]; then
     UPDATE_ARGUMENTS+=(--previous-archive "$APP_UPDATE_BASE_ZIP")
 fi
-python3 "$PROJECT_DIR/script/package_app_updates.py" "${UPDATE_ARGUMENTS[@]}"
-python3 - "$PROJECT_DIR/dist" "$NAME" <<'PY'
+"$WAIFU2X_BUILD_PYTHON" "$PROJECT_DIR/script/package_app_updates.py" "${UPDATE_ARGUMENTS[@]}"
+"$WAIFU2X_BUILD_PYTHON" - "$PROJECT_DIR/dist" "$NAME" <<'PY'
 import hashlib
 import json
 from pathlib import Path

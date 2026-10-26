@@ -4,7 +4,7 @@ import AppKit
 /// The AppKit host is positioned by the canvas presentation callback, never by
 /// an independent SwiftUI animation or a deferred observable-state update.
 struct CanvasControlOverlay: NSViewRepresentable {
-    let workspace: Workspace
+    @ObservedObject var workspace: Workspace
     let presentation: CanvasPresentation
     let processing: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -24,9 +24,11 @@ struct CanvasControlOverlay: NSViewRepresentable {
 }
 
 struct CanvasControls: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var isEnabled = true
     var body: some View {
+        let _ = locale
         HStack(spacing: 8) {
             Group {
                 if workspace.isProcessing {
@@ -59,7 +61,7 @@ struct CanvasControls: View {
         }
         .frame(height: workspace.isProcessing ? CanvasControlLayout.processingHeight : CanvasControlLayout.idleHeight)
         .padding(.horizontal, 16).padding(.vertical, CanvasControlLayout.verticalPadding)
-        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .background(HeaderGeometryReader(identifier: "canvasControlsBounds"))
         .padding(.horizontal, 16).padding(.bottom, CanvasControlLayout.bottomPadding)
         .disabled(!isEnabled)
@@ -77,10 +79,14 @@ private extension PreviewMode {
 }
 
 private struct CanvasZoomControls: View {
-    @Bindable var workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         HStack(spacing: 5) {
-            Button(L("缩小"), systemImage: "minus.magnifyingglass") { workspace.zoom = max(0.25, workspace.zoom / 1.25) }
+            Button { workspace.zoom = max(0.25, workspace.zoom / 1.25) } label: {
+                Label(L("缩小"), systemImage: "minus.magnifyingglass")
+            }
                 .disabled(workspace.zoom <= 0.25).help(L("缩小（⌘−）"))
             Menu {
                 Button(L("适合窗口（⌘0）"), action: workspace.resetView)
@@ -92,7 +98,9 @@ private struct CanvasZoomControls: View {
             .menuStyle(.borderlessButton)
             .help(L("缩放 · 捏合缩放，拖动平移，双击适合窗口"))
             .accessibilityLabel(L("缩放 %d%%", Int((workspace.pixelScale * 100).rounded())))
-            Button(L("放大"), systemImage: "plus.magnifyingglass") { workspace.zoom = min(20, workspace.zoom * 1.25) }
+            Button { workspace.zoom = min(20, workspace.zoom * 1.25) } label: {
+                Label(L("放大"), systemImage: "plus.magnifyingglass")
+            }
                 .disabled(workspace.zoom >= 20).help(L("放大（⌘+）"))
         }
         .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.regular).font(.system(size: 14))
@@ -101,8 +109,10 @@ private struct CanvasZoomControls: View {
 }
 
 private struct ProcessingStatus: View {
-    let workspace: Workspace
+    @Environment(\.locale) private var locale
+    @ObservedObject var workspace: Workspace
     var body: some View {
+        let _ = locale
         HStack(spacing: 12) {
             if let progress = workspace.tileProgress {
                 ProgressView(value: progress.fraction).progressViewStyle(.circular).controlSize(.small)
